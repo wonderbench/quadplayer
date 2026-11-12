@@ -15,6 +15,7 @@ import com.quadplayer.core.model.PlaybackSpeed
 import com.quadplayer.core.util.DeviceCapabilityChecker
 import com.quadplayer.core.util.PerformanceMonitor
 import com.quadplayer.core.util.PerformanceWarning
+import com.quadplayer.core.util.VideoCapabilityWarning
 import com.quadplayer.feature.player.PlayerController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -27,6 +28,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 
 data class QuadPlayerUiState(
@@ -142,6 +145,16 @@ class QuadPlayerViewModel @Inject constructor(
             val settings = uiState.value.settings
             if (audioSourceManager.currentAudioSource.value == -1) {
                 audioSourceManager.switchTo(slotIndex, volumeTargets, settings.crossfadeAudioSwitching)
+            }
+            val activeCount = engine.snapshot().count { it != null }
+            val warning = withContext(Dispatchers.IO) { capabilityChecker.inspectVideo(video.uri, activeCount) }
+            if (engine.snapshot().getOrNull(slotIndex)?.uri == video.uriString) {
+                when (warning) {
+                    VideoCapabilityWarning.NoSupportedDecoder -> warningMessage.value = context.getString(R.string.quad_warning_format)
+                    VideoCapabilityWarning.SoftwareOnly -> warningMessage.value = context.getString(R.string.quad_warning_software)
+                    is VideoCapabilityWarning.ConcurrentLimit -> warningMessage.value = context.getString(R.string.quad_warning_concurrency, warning.count, warning.reportedLimit)
+                    null -> Unit
+                }
             }
         }
     }
