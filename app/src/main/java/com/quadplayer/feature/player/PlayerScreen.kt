@@ -256,7 +256,8 @@ fun PlayerScreen(
     ) {
         PlayerSurface(
             modifier = Modifier.fillMaxSize(),
-            viewModel = viewModel,
+            playbackPlayer = viewModel.controller.player,
+            state = state,
             controlsTopInRoot = controlsTopInRoot.takeIf { state.controlsVisible && !inPip && !controlsLocked },
         )
 
@@ -613,10 +614,10 @@ private fun FloatingPlayerActionButton(
 @Composable
 private fun PlayerSurface(
     modifier: Modifier,
-    viewModel: PlayerViewModel,
+    playbackPlayer: androidx.media3.common.Player,
+    state: PlayerScreenState,
     controlsTopInRoot: Float?,
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
     var playerTopInRoot by remember { mutableFloatStateOf(Float.NaN) }
     var playerHeightPx by remember { mutableIntStateOf(0) }
     val aspectRatio = when (state.playerState.aspectMode) {
@@ -654,14 +655,14 @@ private fun PlayerSurface(
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
                     useController = false
-                    player = viewModel.controller.player
+                    player = playbackPlayer
                     this.resizeMode = resizeMode
                     setShutterBackgroundColor(android.graphics.Color.BLACK)
                     setBackgroundColor(android.graphics.Color.BLACK)
                 }
             },
             update = { playerView ->
-                playerView.player = viewModel.controller.player
+                playerView.player = playbackPlayer
                 playerView.keepScreenOn = state.playerState.isPlaying
                 playerView.resizeMode = resizeMode
                 playerView.applySubtitleStyle(state.settings.subtitleStyle)
