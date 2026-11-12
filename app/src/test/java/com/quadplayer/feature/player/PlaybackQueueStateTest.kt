@@ -20,4 +20,11 @@ class PlaybackQueueStateTest {
         assertFalse(queue.hasPrevious)
         assertFalse(queue.hasNext)
     }
+    @Test fun completedPositionRestartsButPartialPositionResumes() {
+        assertEquals(0L, normalizeResumePosition(10000, 10000))
+        assertEquals(0L, normalizeResumePosition(11000, 10000))
+        assertEquals(5000L, normalizeResumePosition(5000, 10000))
+        assertEquals(5000L, normalizeResumePosition(5000, 0))
+    }
+
 }

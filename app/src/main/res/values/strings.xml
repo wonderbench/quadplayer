@@ -127,6 +127,8 @@
     <string name="quad_speed_title">倍速</string>
     <string name="quad_session_title">恢复上次四格？</string>
     <string name="quad_session_message">恢复上次的视频、进度、布局与音频设置。无法访问的视频可重新选择。</string>
+    <string name="quad_session_reopen">恢复上次四格</string>
+    <string name="quad_audio_source_failed">音频源无法播放，已切换到其他可用视频或静音。</string>
     <string name="quad_session_restore">恢复</string>
     <string name="quad_session_new">新建</string>
     <string name="quad_session_read_failed">无法读取上次会话。</string>
@@ -148,7 +150,6 @@
     <string name="quad_warning_capability">设备资源可能受限：内存 %1$d MB，H.264 解码实例上限参考 %2$d（0 表示未知）。</string>
     <string name="quad_warning_format">没有找到明确支持此视频格式的解码器；如无法播放，请更换素材。</string>
     <string name="quad_warning_software">此视频可能需要软件解码；如出现卡顿，请减少播放路数或更换素材。</string>
-    <string name="quad_warning_concurrency">当前 %1$d 路；此格式的解码器实例上限参考为 %2$d，实际并发能力可能更低。</string>
     <string name="quad_warning_low_memory">内存占用较高，建议减少同时播放的视频数量。</string>
     <string name="quad_warning_thermal">设备温度较高，建议降低负载后继续使用。</string>
     <string name="quad_show_controls">显示控制层</string>
