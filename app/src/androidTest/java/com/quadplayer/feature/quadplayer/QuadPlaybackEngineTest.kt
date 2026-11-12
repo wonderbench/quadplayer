@@ -78,6 +78,13 @@ class QuadPlaybackEngineTest {
             assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
             assertTrue(engine.controllerAt(1)!!.player.playWhenReady)
             assertTrue(engine.controllerAt(2)!!.player.playWhenReady)
+            engine.suspendPlayback()
+            engine.interruptPlayback() // also cancels pending foreground resumes
+            engine.load(3, video(4)) // an in-flight load cannot restart after an interruption
+            assertFalse(engine.snapshot()[3]!!.playing)
+            engine.resumePlayback()
+            assertFalse(engine.controllerAt(1)!!.player.playWhenReady)
+            assertFalse(engine.controllerAt(2)!!.player.playWhenReady)
         } finally { engine.release(); file.delete() }
     }
 

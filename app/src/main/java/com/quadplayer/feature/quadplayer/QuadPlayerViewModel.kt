@@ -54,6 +54,7 @@ class QuadPlayerViewModel @Inject constructor(
     private val performanceMonitor: PerformanceMonitor,
 ) : ViewModel() {
     private val engine = QuadPlaybackEngine(context)
+    private val audioFocus = QuadAudioFocus(context) { engine.interruptPlayback() }
     private val audioSourceManager = AudioSourceManager(viewModelScope)
     private val layoutManager = QuadLayoutManager()
     private val warningMessage = MutableStateFlow<String?>(null)
@@ -160,10 +161,21 @@ class QuadPlayerViewModel @Inject constructor(
 
     fun onScreenStopped() {
         engine.suspendPlayback()
+        audioFocus.stop()
         saveSession()
     }
 
-    fun onScreenStarted() = engine.resumePlayback()
+    fun onScreenStarted() {
+        audioFocus.start()
+        if (engine.hasPlayIntent() && audioSourceManager.currentAudioSource.value >= 0 && !requestAudioFocus()) engine.pauseAll()
+        engine.resumePlayback()
+    }
+
+    private fun requestAudioFocus(): Boolean {
+        if (audioFocus.request()) return true
+        warningMessage.value = context.getString(R.string.quad_audio_focus_unavailable)
+        return false
+    }
 
     fun addVideo(slotIndex: Int, uri: Uri) {
         val request = ++importGenerations[slotIndex]
@@ -175,6 +187,7 @@ class QuadPlayerViewModel @Inject constructor(
                     warningMessage.value = context.getString(R.string.quad_import_failed, slotIndex + 1)
                     return@launch
                 }
+                if (!engine.isInterrupted() && audioFocus.active && !requestAudioFocus()) return@launch
                 if (!loadAndInspect(slotIndex, video) || request != importGenerations[slotIndex]) return@launch
                 val settings = uiState.value.settings
                 if (audioSourceManager.currentAudioSource.value == -1) {
@@ -212,15 +225,19 @@ class QuadPlayerViewModel @Inject constructor(
     }
 
     fun toggleAudioSource(slotIndex: Int) {
+        if (engine.hasPlayIntent() && !requestAudioFocus()) return
         val settings = uiState.value.settings
         audioSourceManager.switchTo(slotIndex, volumeTargets, settings.crossfadeAudioSwitching)
     }
 
     fun muteAll() {
         audioSourceManager.muteAll(volumeTargets)
+        audioFocus.abandon()
     }
 
     fun togglePlayAll() {
+        if (!engine.hasPlayIntent() && audioSourceManager.currentAudioSource.value >= 0 && !requestAudioFocus()) return
+        engine.allowPlayback()
         engine.togglePlayAll()
     }
 
@@ -231,11 +248,22 @@ class QuadPlayerViewModel @Inject constructor(
         engine.syncToPosition(position)
     }
 
-    fun toggleSlot(slotIndex: Int) = engine.toggleSlot(slotIndex)
+    fun toggleSlot(slotIndex: Int) {
+        val player = engine.controllerAt(slotIndex)?.player ?: return
+        if ((!player.playWhenReady || player.playbackState == androidx.media3.common.Player.STATE_ENDED) &&
+            audioSourceManager.currentAudioSource.value >= 0 && !requestAudioFocus()) return
+        engine.allowPlayback()
+        engine.toggleSlot(slotIndex)
+    }
 
     fun setSlotSpeed(slotIndex: Int, speed: PlaybackSpeed) = engine.setSlotSpeed(slotIndex, speed)
 
-    fun retrySlot(slotIndex: Int) = engine.controllerAt(slotIndex)?.retry()
+    fun retrySlot(slotIndex: Int) {
+        if (audioSourceManager.currentAudioSource.value < 0 || requestAudioFocus()) {
+            engine.allowPlayback()
+            engine.controllerAt(slotIndex)?.retry()
+        }
+    }
 
     fun seekSlot(slotIndex: Int, positionMs: Long) {
         engine.seekSlot(slotIndex, positionMs)
@@ -315,6 +343,7 @@ class QuadPlayerViewModel @Inject constructor(
                 }
                 val loaded = (0..3).filter(engine::hasController)
                 val chosenAudio = recoveredAudioSource(session.audioSource, loaded)
+                if (chosenAudio >= 0 && engine.hasPlayIntent() && audioFocus.active && !requestAudioFocus()) engine.pauseAll()
                 if (chosenAudio >= 0) audioSourceManager.switchTo(chosenAudio, volumeTargets, false)
                 else audioSourceManager.muteAll(volumeTargets)
                 if (failed || (session.audioSource >= 0 && chosenAudio != session.audioSource)) {
@@ -342,6 +371,7 @@ class QuadPlayerViewModel @Inject constructor(
     override fun onCleared() {
         saveSession()
         released = true
+        audioFocus.stop()
         performanceMonitor.stop()
         engine.release()
         super.onCleared()
