@@ -69,7 +69,10 @@ fun QuadPlayerApp(activityViewModel: MainActivityViewModel) {
             if (result.videoId == null) externalOpenFailed = true
             else {
                 externalOpenFailed = false
-                navController.navigate(Screen.Player.create(result.videoId))
+                navController.navigate(Screen.Player.create(result.videoId)) {
+                    // External opens replace the previous playback stack, releasing its players.
+                    popUpTo(navController.graph.findStartDestination().id) { inclusive = false }
+                }
             }
         }
     }
