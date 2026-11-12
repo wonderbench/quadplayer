@@ -4,6 +4,10 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
 import com.quadplayer.core.data.DefaultPlaylistRepository
+import com.quadplayer.core.data.QuadSessionRepository
+import com.quadplayer.core.data.SavedQuadSession
+import com.quadplayer.core.data.SavedQuadSlot
+import com.quadplayer.core.model.LayoutMode
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -40,7 +44,7 @@ class DatabaseMigrationTest {
             db.version = 1
         }
         val db = Room.databaseBuilder(context, QuadPlayerDatabase::class.java, name)
-            .allowMainThreadQueries().addMigrations(MIGRATION_1_2).build()
+            .allowMainThreadQueries().addMigrations(MIGRATION_1_2, MIGRATION_2_3).build()
         try {
             val dao = db.videoDao()
             val video = dao.getById(1)!!
@@ -64,6 +68,10 @@ class DatabaseMigrationTest {
             dao.upsert(video)
             assertEquals(listOf(1L, 3L, 2L), db.playlistDao().observePlaylistVideos(1).first().map { it.id })
             assertEquals(42L, db.playHistoryDao().getByVideoId(1)!!.lastPositionMs)
+            val sessions = QuadSessionRepository(db.quadSessionDao())
+            val saved = SavedQuadSession(listOf(SavedQuadSlot("content://video/1", 1234, 1.5f, false), null, null, null), LayoutMode.FOCUS_GRID, 0, 0)
+            sessions.save(saved)
+            assertEquals(saved, sessions.read())
         } finally { db.close() }
     }
 }
