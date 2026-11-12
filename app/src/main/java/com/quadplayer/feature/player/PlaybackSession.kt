@@ -44,7 +44,7 @@ class PlaybackSession(
     private val historyWriteQueue: HistoryWriteQueue,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
-    private val playerController = PlayerController(context, handleAudioFocus = true)
+    private val playerController = PlayerController(context, handleAudioFocus = true, rememberTrackChoices = true)
     private val historySession = PlaybackHistorySession(historyWriteQueue)
     private val appContext = context
     private val video = MutableStateFlow<VideoFile?>(null)
