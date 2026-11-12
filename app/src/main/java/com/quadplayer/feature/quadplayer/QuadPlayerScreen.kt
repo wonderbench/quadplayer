@@ -29,6 +29,7 @@ import com.quadplayer.ui.theme.DepthChip
 import com.quadplayer.ui.theme.DepthChoiceChip
 import com.quadplayer.core.ui.applySubtitleStyle
 import com.quadplayer.core.model.SubtitleStyle
+import com.quadplayer.feature.player.playbackFailureShortText
 import androidx.compose.material3.Icon
 import com.quadplayer.ui.theme.RoundIconButton
 import androidx.compose.material3.MaterialTheme
@@ -550,7 +551,7 @@ private fun QuadSlotContent(
                         color = MaterialTheme.colorScheme.errorContainer,
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(stringResource(R.string.player_error_failed))
+                            Text(stringResource(playbackFailureShortText(slot.failure)), maxLines = 2)
                             Row {
                                 TextButton(onClick = { viewModel.retrySlot(slot.index) }) { Text(stringResource(R.string.player_retry)) }
                                 TextButton(onClick = { onAddVideo(slot.index) }) { Text(stringResource(R.string.quad_replace_video)) }

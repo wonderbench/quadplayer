@@ -144,6 +144,12 @@
     <string name="player_service_failed">Could not start background playback. Check system restrictions.</string>
     <string name="player_retry">Retry</string>
     <string name="player_error_failed">Playback failed</string>
+    <string name="player_error_permission">File access was denied. Grant access again and retry.</string>
+    <string name="player_error_missing">The file is missing, moved or inaccessible. Select it again.</string>
+    <string name="player_error_unsupported">The decoder could not start or the format is unsupported. Try fewer videos, another file or another decoder mode.</string>
+    <string name="player_error_permission_short">Access denied</string>
+    <string name="player_error_missing_short">File unavailable</string>
+    <string name="player_error_unsupported_short">Decoder failed</string>
     <string name="player_video_not_found">Video not found</string>
     <string name="player_external_audio_failed">Could not load external audio</string>
     <string name="player_external_subtitle_failed">Could not load external subtitle</string>

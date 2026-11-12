@@ -151,6 +151,12 @@
     <string name="player_service_failed">后台播放服务无法启动，请检查系统限制。</string>
     <string name="player_retry">重试</string>
     <string name="player_error_failed">播放失败</string>
+    <string name="player_error_permission">无法访问文件，请重新授权后重试。</string>
+    <string name="player_error_missing">文件不存在、已移动或无法访问，请重新选择视频。</string>
+    <string name="player_error_unsupported">无法启动解码器或格式不受支持，请尝试减少视频数量、更换视频或解码模式。</string>
+    <string name="player_error_permission_short">需要访问权限</string>
+    <string name="player_error_missing_short">文件无法访问</string>
+    <string name="player_error_unsupported_short">解码失败</string>
     <string name="player_video_not_found">未找到该视频</string>
     <string name="player_external_audio_failed">外挂音轨加载失败</string>
     <string name="player_external_subtitle_failed">外挂字幕加载失败</string>
