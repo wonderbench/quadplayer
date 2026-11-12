@@ -38,6 +38,7 @@ class QuadPlaybackEngine(private val context: Context) {
     private var settings = AppSettings()
     private var globalSpeed: PlaybackSpeed? = null
     private var suspended = false
+    private var interrupted = false
     private val resumeIntents = mutableMapOf<PlayerController, Boolean>()
 
     fun controllerAt(index: Int): PlayerController? = slots[index].value.controller
@@ -107,11 +108,27 @@ class QuadPlaybackEngine(private val context: Context) {
 
     fun setSlotPlaying(slotIndex: Int, playing: Boolean) {
         val controller = slots[slotIndex].value.controller ?: return
+        val shouldPlay = playing && !interrupted
         if (suspended) {
-            resumeIntents[controller] = playing
+            resumeIntents[controller] = shouldPlay
             controller.pause()
-        } else if (playing) controller.play() else controller.pause()
+        } else if (shouldPlay) controller.play() else controller.pause()
     }
+
+    fun hasPlayIntent(): Boolean = slots.mapNotNull { it.value.controller }.any {
+        if (suspended) resumeIntents[it] == true else it.player.playWhenReady
+    }
+
+    fun pauseAll() {
+        slots.indices.forEach { setSlotPlaying(it, false) }
+    }
+
+    fun interruptPlayback() {
+        interrupted = true
+        pauseAll()
+    }
+
+    fun allowPlayback() { interrupted = false }
 
     suspend fun swap(first: Int, second: Int) {
         if (first == second) return
