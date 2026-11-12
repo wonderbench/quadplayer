@@ -51,7 +51,7 @@ class DatabaseMigrationTest {
             assertTrue(video.isFavorite && video.isAccessible)
             assertEquals(42L, db.playHistoryDao().getByVideoId(1)!!.lastPositionMs)
             assertEquals(1, db.playlistDao().observePlaylistVideos(1).first().size)
-            dao.markScannedUnavailable()
+            dao.markUnavailable(listOf(1))
             assertTrue(dao.observeAll().first().isEmpty())
             assertTrue(db.playlistDao().observePlaylistVideos(1).first().isEmpty())
             dao.upsert(video)

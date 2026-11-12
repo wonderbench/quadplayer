@@ -20,8 +20,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -62,7 +62,7 @@ class DefaultVideoRepository @Inject constructor(
     private val scanner: MediaStoreVideoScanner,
     private val database: QuadPlayerDatabase,
 ) : VideoRepository {
-    private val refreshMutex = Mutex()
+    private val refreshCoordinator = RefreshCoordinator(CoroutineScope(SupervisorJob() + Dispatchers.IO), ::scanAndUpdate)
     override val videos: Flow<List<VideoFile>> = videoDao.observeAll().map { rows -> rows.map { it.toModel() } }
     override val favorites: Flow<List<VideoFile>> = videoDao.observeFavorites().map { rows -> rows.map { it.toModel() } }
     override val folders: Flow<List<FolderInfo>> = videoDao.observeFolders()
@@ -75,29 +75,21 @@ class DefaultVideoRepository @Inject constructor(
         return videoDao.search(query).map { rows -> rows.map { it.toModel() } }
     }
 
-    override suspend fun refreshVideos() = refreshMutex.withLock {
-        withContext(Dispatchers.IO) {
-            val scanned = try {
-                scanner.scanVideos()
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (failure: Exception) {
-                Log.w("VideoRepository", "MediaStore scan failed; retaining cached videos", failure)
-                return@withContext
-            }
-            database.withTransaction {
-                videoDao.markScannedUnavailable()
-                scanned.forEach { fresh ->
-                    val existing = videoDao.getByUriString(fresh.uriString)
-                    val updated = if (existing == null) fresh else fresh.copy(
-                        id = existing.id,
-                        isFavorite = existing.isFavorite,
-                        isManuallyAdded = existing.isManuallyAdded,
-                        isAccessible = true,
-                    )
-                    videoDao.upsert(updated)
-                }
-            }
+    override suspend fun refreshVideos() = refreshCoordinator.refresh()
+
+    private suspend fun scanAndUpdate() {
+        val scanned = try {
+            scanner.scanVideos()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Log.w("VideoRepository", "MediaStore scan failed; retaining cached videos", failure)
+            return
+        }
+        database.withTransaction {
+            val changes = calculateScanChanges(videoDao.getAll(), scanned)
+            changes.hideIds.chunked(500).forEach { videoDao.markUnavailable(it) }
+            if (changes.upserts.isNotEmpty()) videoDao.upsertAll(changes.upserts)
         }
     }
 
