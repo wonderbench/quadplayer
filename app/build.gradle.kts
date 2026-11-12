@@ -61,6 +61,7 @@ kotlin {
 
 kapt {
     correctErrorTypes = true
+    arguments { arg("room.schemaLocation", "$projectDir/schemas") }
 }
 
 dependencies {
@@ -103,6 +104,8 @@ dependencies {
     testImplementation("org.robolectric:robolectric:4.14.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test:runner:1.5.0")
     androidTestImplementation(composeBom)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

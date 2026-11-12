@@ -1,0 +1,58 @@
+package com.quadplayer.core.database
+
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import androidx.room.Room
+import androidx.test.core.app.ApplicationProvider
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import androidx.test.ext.junit.runners.AndroidJUnit4
+
+@RunWith(AndroidJUnit4::class)
+class DatabaseMigrationTest {
+    private val context = ApplicationProvider.getApplicationContext<Context>()
+    private val name = "migration-test.db"
+    @After fun cleanUp() { context.deleteDatabase(name) }
+
+    @Test fun migrationRetainsReferencesWhenAccessIsRemovedAndRestored() = runBlocking {
+        context.deleteDatabase(name)
+        val path = context.getDatabasePath(name)
+        path.parentFile?.mkdirs()
+        SQLiteDatabase.openOrCreateDatabase(path, null).use { db ->
+            db.execSQL("CREATE TABLE IF NOT EXISTS videos (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, uri_string TEXT NOT NULL, display_name TEXT NOT NULL, folder_path TEXT NOT NULL, folder_name TEXT NOT NULL, duration_ms INTEGER NOT NULL, size_bytes INTEGER NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, mime_type TEXT NOT NULL, date_modified INTEGER NOT NULL, is_favorite INTEGER NOT NULL, is_manually_added INTEGER NOT NULL, local_path TEXT)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_videos_uri_string ON videos (uri_string)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS play_history (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, video_id INTEGER NOT NULL, last_position_ms INTEGER NOT NULL, last_played_at INTEGER NOT NULL, FOREIGN KEY(video_id) REFERENCES videos(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_play_history_video_id ON play_history (video_id)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS playlists (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)")
+            db.execSQL("CREATE TABLE IF NOT EXISTS playlist_videos (playlist_id INTEGER NOT NULL, video_id INTEGER NOT NULL, sort_order INTEGER NOT NULL, PRIMARY KEY(playlist_id, video_id), FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON UPDATE NO ACTION ON DELETE CASCADE, FOREIGN KEY(video_id) REFERENCES videos(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_playlist_videos_playlist_id ON playlist_videos (playlist_id)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_playlist_videos_video_id ON playlist_videos (video_id)")
+            db.execSQL("INSERT INTO videos VALUES (1,'content://video/1','v','folder','folder',100,100,1,1,'video/mp4',1,1,0,NULL)")
+            db.execSQL("INSERT INTO play_history VALUES (1,1,42,1)")
+            db.execSQL("INSERT INTO playlists VALUES (1,'list',1,1)")
+            db.execSQL("INSERT INTO playlist_videos VALUES (1,1,0)")
+            db.version = 1
+        }
+        val db = Room.databaseBuilder(context, QuadPlayerDatabase::class.java, name)
+            .allowMainThreadQueries().addMigrations(MIGRATION_1_2).build()
+        try {
+            val dao = db.videoDao()
+            val video = dao.getById(1)!!
+            assertTrue(video.isFavorite && video.isAccessible)
+            assertEquals(42L, db.playHistoryDao().getByVideoId(1)!!.lastPositionMs)
+            assertEquals(1, db.playlistDao().observePlaylistVideos(1).first().size)
+            dao.markScannedUnavailable()
+            assertTrue(dao.observeAll().first().isEmpty())
+            assertTrue(db.playlistDao().observePlaylistVideos(1).first().isEmpty())
+            dao.upsert(video)
+            assertEquals(1, dao.observeFavorites().first().size)
+            assertEquals(1, db.playlistDao().observePlaylistVideos(1).first().size)
+            assertEquals(42L, db.playHistoryDao().getByVideoId(1)!!.lastPositionMs)
+        } finally { db.close() }
+    }
+}

@@ -1,7 +1,5 @@
 package com.quadplayer.feature.filebrowser
 
-import android.Manifest
-import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -46,9 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
+import com.quadplayer.core.ui.rememberMediaAccess
 import com.quadplayer.R
 import com.quadplayer.core.model.PlaylistSummary
 import com.quadplayer.core.model.VideoFile
@@ -56,7 +52,7 @@ import com.quadplayer.core.util.formatDuration
 import com.quadplayer.core.util.formatFileSize
 import kotlinx.coroutines.flow.collectLatest
 
-@OptIn(ExperimentalPermissionsApi::class, androidx.compose.material3.ExperimentalMaterial3Api::class)
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun FileBrowserScreen(
     viewModel: FileBrowserViewModel,
@@ -64,21 +60,11 @@ fun FileBrowserScreen(
     onOpenPlaylist: (Long) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val permission = rememberPermissionState(
-        permission = if (Build.VERSION.SDK_INT >= 33) {
-            Manifest.permission.READ_MEDIA_VIDEO
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        },
-    )
+    val permission = rememberMediaAccess(viewModel::refresh)
     var playlistTarget by remember { mutableStateOf<VideoFile?>(null) }
     var showFolderPicker by remember { mutableStateOf(false) }
 
-    LaunchedEffect(permission.status.isGranted) {
-        if (permission.status.isGranted) {
-            viewModel.refresh()
-        }
-    }
+
 
     LaunchedEffect(viewModel) {
         viewModel.openPlaylistEvents.collectLatest { playlistId ->
@@ -86,8 +72,8 @@ fun FileBrowserScreen(
         }
     }
 
-    if (!permission.status.isGranted) {
-        PermissionRequired(onGrant = { permission.launchPermissionRequest() })
+    if (!permission.available) {
+        PermissionRequired(onGrant = { permission.request() })
         return
     }
 
@@ -112,6 +98,9 @@ fun FileBrowserScreen(
             }
         }
 
+        if (permission.partial) {
+            TextButton(onClick = permission.request) { Text(stringResource(R.string.media_partial_access)) }
+        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp),

@@ -1,7 +1,5 @@
 package com.quadplayer.feature.home
 
-import android.Manifest
-import android.os.Build
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -50,16 +48,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.google.accompanist.permissions.ExperimentalPermissionsApi
-import com.google.accompanist.permissions.isGranted
-import com.google.accompanist.permissions.rememberPermissionState
+import com.quadplayer.core.ui.rememberMediaAccess
 import com.quadplayer.R
 import com.quadplayer.core.model.PlaylistSummary
 import com.quadplayer.core.model.RecentPlayback
 import com.quadplayer.core.model.VideoFile
 import com.quadplayer.core.util.formatDuration
 
-@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
@@ -67,23 +62,13 @@ fun HomeScreen(
     onOpenPlaylist: (Long) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val permission = rememberPermissionState(
-        permission = if (Build.VERSION.SDK_INT >= 33) {
-            Manifest.permission.READ_MEDIA_VIDEO
-        } else {
-            Manifest.permission.READ_EXTERNAL_STORAGE
-        },
-    )
+    val permission = rememberMediaAccess(viewModel::refresh)
     var selectedTab by remember { mutableIntStateOf(0) }
     var playlistTarget by remember { mutableStateOf<VideoFile?>(null) }
 
-    LaunchedEffect(permission.status.isGranted) {
-        if (permission.status.isGranted) {
-            viewModel.refresh()
-        }
-    }
 
-    if (!permission.status.isGranted) {
+
+    if (!permission.available) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -95,7 +80,7 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(stringResource(R.string.home_permission_required))
-                Button(onClick = { permission.launchPermissionRequest() }) {
+                Button(onClick = { permission.request() }) {
                     Text(stringResource(R.string.home_grant_permission))
                 }
             }
@@ -123,6 +108,9 @@ fun HomeScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
+        }
+        if (permission.partial) {
+            TextButton(onClick = permission.request) { Text(stringResource(R.string.media_partial_access)) }
         }
         Spacer(Modifier.height(8.dp))
         Text(
