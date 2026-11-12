@@ -23,6 +23,7 @@ import com.quadplayer.MainActivity
 import com.quadplayer.core.model.VideoFile
 import com.quadplayer.feature.player.PlayerController
 import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
@@ -34,6 +35,16 @@ import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
+
+internal data class FrameSample(val presentationUs: Long, val releaseNs: Long, val observedNs: Long)
+
+/** Returns null when any stream has not recently delivered a frame. */
+internal fun estimateDriftMs(samples: List<FrameSample?>, nowNs: Long, frameRate: Int?): Long? {
+    val maxAgeNs = if (frameRate != null && frameRate > 0) maxOf(500_000_000L, 3_000_000_000L / frameRate) else 1_000_000_000L
+    if (samples.isEmpty() || samples.any { it == null || it.presentationUs < 0 || it.releaseNs <= 0 || nowNs - it.observedNs !in 0..maxAgeNs }) return null
+    val projected = samples.map { sample -> sample!!.presentationUs + (nowNs - sample.releaseNs) / 1_000L }
+    return (projected.max() - projected.min()) / 1_000L
+}
 
 /** Opt-in real-device benchmark; no media is installed or removed by the test. */
 @RunWith(AndroidJUnit4::class)
@@ -68,8 +79,7 @@ class PlaybackPerformanceTest {
         val views = mutableListOf<SurfaceView>()
         val controllers = mutableListOf<PlayerController>()
         val firstFrames = List(count) { AtomicLong(0) }
-        val pts = List(count) { AtomicLong(-1) }
-        val releaseNs = List(count) { AtomicLong(0) }
+        val frames = List(count) { AtomicReference<FrameSample?>(null) }
         val startMs = LongArray(count)
         var overlay: FrameLayout? = null
         try {
@@ -99,8 +109,7 @@ class PlaybackPerformanceTest {
                         override fun onRenderedFirstFrame() { firstFrames[index].compareAndSet(0, SystemClock.elapsedRealtime()) }
                     })
                     controller.player.setVideoFrameMetadataListener(VideoFrameMetadataListener { presentationTimeUs, releaseTimeNs, _, _ ->
-                        pts[index].set(presentationTimeUs)
-                        releaseNs[index].set(releaseTimeNs)
+                        frames[index].set(FrameSample(presentationTimeUs, releaseTimeNs, System.nanoTime()))
                     })
                     startMs[index] = SystemClock.elapsedRealtime()
                     controller.load(video)
@@ -118,8 +127,7 @@ class PlaybackPerformanceTest {
             }
             withContext(Dispatchers.Main) {
                 controllers.forEach { it.pause(); it.seekTo(0) }
-                pts.forEach { it.set(-1) }
-                releaseNs.forEach { it.set(0) }
+                frames.forEach { it.set(null) }
                 controllers.forEach { it.play() }
             }
             var peakPssKb = 0
@@ -129,10 +137,10 @@ class PlaybackPerformanceTest {
                 val elapsed = (SystemClock.elapsedRealtime() - started) / 1000
                 val memory = Debug.MemoryInfo().also(Debug::getMemoryInfo)
                 peakPssKb = maxOf(peakPssKb, memory.totalPss)
-                if (elapsed in listOf(1L, 10L, 60L) && !drift.has(elapsed.toString()) && pts.indices.all { pts[it].get() >= 0 && releaseNs[it].get() > 0 }) {
+                if (elapsed in listOf(1L, 10L, 60L) && !drift.has(elapsed.toString())) {
                     val now = System.nanoTime()
-                    val projected = pts.indices.map { index -> pts[index].get() + (now - releaseNs[index].get()) / 1000 }
-                    drift.put(elapsed.toString(), (projected.max() - projected.min()) / 1000)
+                    val snapshot = frames.map { it.get() }
+                    drift.put(elapsed.toString(), estimateDriftMs(snapshot, now, fps) ?: JSONObject.NULL)
                 }
                 delay(1000)
             }

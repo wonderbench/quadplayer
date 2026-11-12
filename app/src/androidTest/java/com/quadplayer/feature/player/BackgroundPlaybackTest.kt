@@ -121,8 +121,20 @@ class BackgroundPlaybackTest {
                 }
             }
             withTimeout(15000) { second.state.first { it.video?.id == id && it.playerState.isPlaying } }
-            withContext(Dispatchers.Main) { host.setScreenVisible(second, false); host.releaseScreen(second) }
+            val secondFuture = withContext(Dispatchers.Main) { MediaController.Builder(context, token).buildAsync() }
+            val boundController = withContext(Dispatchers.IO) { secondFuture.get(15, TimeUnit.SECONDS) }
+            mediaController = boundController
+            // Disable while visible, then leave with the controller still bound.
             settings.setBackgroundPlayback(false)
+            withTimeout(5000) { while (withContext(Dispatchers.Main) { second.backgroundEnabled }) delay(50) }
+            withContext(Dispatchers.Main) {
+                host.setScreenVisible(second, false)
+                second.onBackgroundStateChanged(false, false)
+                host.stopService()
+                host.releaseScreen(second)
+            }
+            withTimeout(10000) { while (withContext(Dispatchers.Main) { boundController.isConnected }) delay(50) }
+            withContext(Dispatchers.Main) { boundController.play() }
             withTimeout(10000) { while (withContext(Dispatchers.Main) { host.hasActiveSession() }) delay(50) }
         } finally {
             withContext(Dispatchers.Main) { mediaController?.release(); host.stopService() }
