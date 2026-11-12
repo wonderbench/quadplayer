@@ -33,6 +33,7 @@
     <string name="home_new_playlist">新建</string>
     <string name="home_create_playlist">创建播放列表</string>
     <string name="home_playlist_name">名称</string>
+    <string name="home_refresh">刷新媒体库</string>
     <string name="home_add_to_playlist_title">加入播放列表</string>
     <string name="home_existing_playlists">已有播放列表</string>
     <string name="home_empty_videos">暂无本地视频</string>
