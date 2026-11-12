@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import android.util.Log
 
 data class HomeUiState(
     val isRefreshing: Boolean = false,
@@ -35,6 +37,7 @@ class HomeViewModel @Inject constructor(
 
     private val query = MutableStateFlow("")
     private val refreshing = MutableStateFlow(false)
+    private var refreshCount = 0
 
     private val libraryState = combine(
         videoRepository.videos,
@@ -71,9 +74,18 @@ class HomeViewModel @Inject constructor(
 
     fun refresh() {
         viewModelScope.launch {
+            refreshCount++
             refreshing.value = true
-            runCatching { videoRepository.refreshVideos() }
-            refreshing.value = false
+            try {
+                videoRepository.refreshVideos()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                Log.w("HomeViewModel", "Media refresh failed", failure)
+            } finally {
+                refreshCount--
+                refreshing.value = refreshCount > 0
+            }
         }
     }
 

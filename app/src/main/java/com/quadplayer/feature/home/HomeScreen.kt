@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AlertDialog
 import com.quadplayer.ui.theme.DepthChip
 import androidx.compose.material3.Button
@@ -29,6 +30,8 @@ import com.quadplayer.ui.theme.TrackDivider
 import androidx.compose.material3.Icon
 import com.quadplayer.ui.theme.RoundIconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.quadplayer.ui.theme.QuietTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -58,6 +61,7 @@ import com.quadplayer.core.model.RecentPlayback
 import com.quadplayer.core.model.VideoFile
 import com.quadplayer.core.util.formatDuration
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: HomeViewModel,
@@ -91,6 +95,7 @@ fun HomeScreen(
         return
     }
 
+    PullToRefreshBox(isRefreshing = uiState.isRefreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -108,9 +113,13 @@ fun HomeScreen(
             )
             Text(
                 text = stringResource(R.string.app_name),
+                modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
             )
+            RoundIconButton(onClick = viewModel::refresh, enabled = !uiState.isRefreshing) {
+                Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.home_refresh))
+            }
         }
         if (permission.partial) {
             TextButton(onClick = permission.request) { Text(stringResource(R.string.media_partial_access)) }
@@ -184,6 +193,7 @@ fun HomeScreen(
                 onCreatePlaylist = viewModel::createPlaylist,
             )
         }
+    }
     }
 
     playlistTarget?.let { target ->
