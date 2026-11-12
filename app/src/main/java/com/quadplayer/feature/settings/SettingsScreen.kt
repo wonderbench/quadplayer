@@ -56,6 +56,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     var showAboutSheet by remember { mutableStateOf(false) }
     var showLicenses by remember { mutableStateOf(false) }
+    var showGrants by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -171,6 +172,11 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             description = stringResource(R.string.settings_open_source_licenses_desc),
             onClick = { showLicenses = true },
         )
+        AboutSoftwareEntry(
+            title = stringResource(R.string.settings_grants_title),
+            description = stringResource(R.string.settings_grants_entry_desc),
+            onClick = { showGrants = true },
+        )
     }
 
     if (showAboutSheet) {
@@ -178,6 +184,9 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     }
     if (showLicenses) {
         ThirdPartyNoticesDialog(onDismiss = { showLicenses = false })
+    }
+    if (showGrants) {
+        PersistedGrantManager(onDismiss = { showGrants = false })
     }
 }
 

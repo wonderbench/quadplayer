@@ -3,6 +3,7 @@ package com.quadplayer.core.data
 import android.content.ContentResolver
 import android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.core.net.toUri
 
 /** Serializes a selection with revocation, so an old dialog cannot revoke a newer grant. */
@@ -24,6 +25,7 @@ internal class GrantSelectionGuard {
 }
 
 internal data class DocumentGrantToken(val uri: String, val revision: Long)
+internal data class DocumentGrantItem(val uri: Uri, val label: String)
 internal enum class GrantReleaseResult { RELEASED, CHANGED, FAILED }
 
 internal object DocumentAccessGrants {
@@ -34,6 +36,21 @@ internal object DocumentAccessGrants {
     fun isCurrent(uri: String, revision: Long): Boolean = guard.snapshot(uri) == revision
 
     fun noteSelection(uri: Uri) { guard.select(uri.toString()) { } }
+
+    /** Call on an IO dispatcher: a document provider may need to resolve its display name. */
+    fun listReadGrants(resolver: ContentResolver): List<DocumentGrantItem> =
+        resolver.persistedUriPermissions.filter { it.isReadPermission }.map { permission ->
+            val uri = permission.uri
+            val name = runCatching {
+                resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    val column = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (column >= 0 && cursor.moveToFirst()) cursor.getString(column) else null
+                }
+            }.getOrNull()?.filterNot { it.isISOControl() }?.trim()?.take(160)?.takeIf { it.isNotEmpty() }
+            val fallback = uri.lastPathSegment?.substringAfterLast('/')?.filterNot { it.isISOControl() }
+                ?.trim()?.take(160)?.takeIf { it.isNotEmpty() }
+            DocumentGrantItem(uri, name ?: fallback ?: uri.authority.orEmpty().ifBlank { "—" })
+        }.sortedBy { it.label.lowercase(java.util.Locale.ROOT) }
 
     fun retainRead(resolver: ContentResolver, uri: Uri): Boolean = guard.select(uri.toString()) {
         runCatching { resolver.takePersistableUriPermission(uri, FLAG_GRANT_READ_URI_PERMISSION) }.isSuccess
@@ -47,9 +64,9 @@ internal object DocumentAccessGrants {
             }
         }
         if (unchanged) GrantReleaseResult.RELEASED else GrantReleaseResult.CHANGED
-    } catch (_: SecurityException) {
-        GrantReleaseResult.FAILED
-    } catch (_: IllegalArgumentException) {
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        throw cancelled
+    } catch (_: Exception) {
         GrantReleaseResult.FAILED
     }
 }

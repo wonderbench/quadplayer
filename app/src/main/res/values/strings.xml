@@ -158,6 +158,18 @@
     <string name="settings_open_source_licenses_desc">查看使用的组件、字体及其许可声明。</string>
     <string name="settings_licenses_loading">正在加载许可声明…</string>
     <string name="settings_licenses_failed">无法加载许可声明。</string>
+    <string name="settings_grants_title">管理文件授权</string>
+    <string name="settings_grants_entry_desc">查看和释放通过文件选择器保留的授权。</string>
+    <string name="settings_grants_desc">以下是应用保留的文件读取授权，包括不再显示在媒体库中的文件。释放前请确认影响。</string>
+    <string name="settings_grants_loading">正在读取授权…</string>
+    <string name="settings_grants_refresh">刷新</string>
+    <string name="settings_grants_empty">没有保留的文件读取授权。</string>
+    <string name="settings_grants_load_failed">无法读取文件授权，请稍后重试。</string>
+    <string name="settings_grant_revoke_title">释放文件授权？</string>
+    <string name="settings_grant_revoke_confirmation">释放“%1$s”的持久读取授权？当前播放、四格会话、预设、音轨或字幕可能失去访问权限。不会删除原文件，需要时可重新选择并授权。</string>
+    <string name="settings_grant_revoke_action">释放授权</string>
+    <string name="settings_grant_changed">该文件已被重新选择，授权未释放。请刷新后重试。</string>
+    <string name="settings_grant_release_failed">系统未能释放该授权，请稍后重试。</string>
     <string name="settings_about_software_subtitle">QuadPlayer 功能与使用说明</string>
 
     <string name="player_title">播放器</string>
