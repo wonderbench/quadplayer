@@ -65,6 +65,11 @@
     <string name="playlist_move_up">上移</string>
     <string name="playlist_move_down">下移</string>
     <string name="playlist_remove">删除</string>
+    <string name="playlist_play_all">播放全部</string>
+    <string name="playlist_rename">重命名</string>
+    <string name="playlist_save">保存</string>
+    <string name="playlist_delete">删除列表</string>
+    <string name="playlist_delete_confirm">删除“%1$s”？视频文件不会被删除。</string>
 
     <string name="settings_title">设置</string>
     <string name="settings_theme">主题</string>
