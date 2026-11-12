@@ -140,10 +140,8 @@ class DefaultHistoryRepository @Inject constructor(
     override suspend fun clearHistory() = withContext(Dispatchers.IO) { playHistoryDao.clear() }
 
     override suspend fun recordPlayback(videoId: Long, positionMs: Long) = withContext(Dispatchers.IO) {
-        val existing = playHistoryDao.getByVideoId(videoId)
         playHistoryDao.upsert(
             PlayHistoryEntity(
-                id = existing?.id ?: 0,
                 videoId = videoId,
                 lastPositionMs = positionMs,
                 lastPlayedAt = System.currentTimeMillis(),
