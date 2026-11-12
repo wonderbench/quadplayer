@@ -49,6 +49,11 @@ interface PlaylistRepository {
 
     fun observePlaylistVideos(playlistId: Long): Flow<List<VideoFile>>
     suspend fun createPlaylist(name: String): Long
+    suspend fun createPlaylistWithVideos(name: String, videoIds: List<Long>): Long {
+        val id = createPlaylist(name)
+        videoIds.distinct().forEach { addVideo(id, it) }
+        return id
+    }
     suspend fun renamePlaylist(playlistId: Long, newName: String)
     suspend fun deletePlaylist(playlistId: Long)
     suspend fun addVideo(playlistId: Long, videoId: Long)
@@ -161,6 +166,15 @@ class DefaultPlaylistRepository @Inject constructor(
         )
     }
 
+    override suspend fun createPlaylistWithVideos(name: String, videoIds: List<Long>): Long = withContext(Dispatchers.IO) {
+        database.withTransaction {
+            val now = System.currentTimeMillis()
+            val id = playlistDao.insertPlaylist(PlaylistEntity(name = name.trim().ifBlank { "新播放列表" }, createdAt = now, updatedAt = now))
+            playlistDao.upsertEntries(videoIds.distinct().mapIndexed { index, videoId -> PlaylistVideoEntity(id, videoId, index) })
+            id
+        }
+    }
+
     override suspend fun renamePlaylist(playlistId: Long, newName: String) = withContext(Dispatchers.IO) {
         val playlist = playlistDao.getPlaylist(playlistId) ?: return@withContext
         playlistDao.upsertPlaylist(playlist.copy(name = newName, updatedAt = System.currentTimeMillis()))
@@ -173,17 +187,21 @@ class DefaultPlaylistRepository @Inject constructor(
     }
 
     override suspend fun addVideo(playlistId: Long, videoId: Long) = withContext(Dispatchers.IO) {
-        val entries = playlistDao.getPlaylistEntries(playlistId)
-        if (entries.any { it.videoId == videoId }) return@withContext
-        val nextOrder = (entries.maxOfOrNull { it.sortOrder } ?: -1) + 1
-        playlistDao.upsertEntries(listOf(PlaylistVideoEntity(playlistId, videoId, nextOrder)))
-        touchPlaylist(playlistId)
+        database.withTransaction {
+            val entries = playlistDao.getPlaylistEntries(playlistId)
+            if (entries.any { it.videoId == videoId }) return@withTransaction
+            val nextOrder = (entries.maxOfOrNull { it.sortOrder } ?: -1) + 1
+            playlistDao.upsertEntries(listOf(PlaylistVideoEntity(playlistId, videoId, nextOrder)))
+            touchPlaylist(playlistId)
+        }
     }
 
     override suspend fun removeVideo(playlistId: Long, videoId: Long) = withContext(Dispatchers.IO) {
-        playlistDao.removeVideo(playlistId, videoId)
-        reindexPlaylist(playlistId)
-        touchPlaylist(playlistId)
+        database.withTransaction {
+            playlistDao.removeVideo(playlistId, videoId)
+            reindexPlaylist(playlistId)
+            touchPlaylist(playlistId)
+        }
     }
 
     override suspend fun swapVideos(playlistId: Long, firstVideoId: Long, secondVideoId: Long) = withContext(Dispatchers.IO) {

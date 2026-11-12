@@ -230,10 +230,7 @@ class FileBrowserViewModel @Inject constructor(
                 R.string.folders_playlist_name_template,
                 currentState.selectedFolder?.name ?: context.getString(R.string.folders_all_videos),
             )
-            val playlistId = playlistRepository.createPlaylist(playlistName)
-            currentState.videos.forEach { video ->
-                playlistRepository.addVideo(playlistId, video.id)
-            }
+            val playlistId = playlistRepository.createPlaylistWithVideos(playlistName, currentState.videos.map { it.id })
             openPlaylistRequests.emit(playlistId)
         }
     }

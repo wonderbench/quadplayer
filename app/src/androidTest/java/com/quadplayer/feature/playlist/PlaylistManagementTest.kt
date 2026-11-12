@@ -15,11 +15,29 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class PlaylistManagementTest {
+    @Test fun batchCreationIsAtomicAndDeduplicated() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, QuadPlayerDatabase::class.java).build()
+        try {
+            val repository = DefaultPlaylistRepository(db.playlistDao(), db)
+            val first = db.videoDao().upsert(VideoEntity(uriString = "content://batch/1", displayName = "one", folderPath = "test", folderName = "test", durationMs = 1, sizeBytes = 1, width = 1, height = 1, mimeType = "video/mp4", dateModified = 0))
+            val second = db.videoDao().upsert(VideoEntity(uriString = "content://batch/2", displayName = "two", folderPath = "test", folderName = "test", durationMs = 1, sizeBytes = 1, width = 1, height = 1, mimeType = "video/mp4", dateModified = 0))
+            val id = repository.createPlaylistWithVideos("Batch", listOf(first, first, second))
+            assertEquals(listOf(first, second), db.playlistDao().getPlaylistEntries(id).map { it.videoId })
+            val failed = runCatching { repository.createPlaylistWithVideos("Must roll back", listOf(first, Long.MAX_VALUE)) }
+            assertTrue(failed.isFailure)
+            assertEquals(listOf("Batch"), repository.playlists.first().map { it.name })
+            repository.removeVideo(id, first)
+            assertEquals(listOf(second), db.playlistDao().getPlaylistEntries(id).map { it.videoId })
+        } finally { db.close() }
+    }
+
     @Test fun renameReorderByVideoIdAndDelete() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, QuadPlayerDatabase::class.java).build()
