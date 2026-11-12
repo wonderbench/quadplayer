@@ -25,6 +25,11 @@
     <string name="quad_sync_not_ready">有视频尚不可定位，或已开启区间循环；请稍后重试或先清除区间。</string>
     <string name="quad_sync_incomplete">部分视频未能对齐，或片长短于音频源，请检查片源后重试。</string>
     <string name="app_name">QuadPlayer</string>
+    <string name="search_panel_open">显示搜索和筛选</string>
+    <string name="search_panel_close">收起搜索和筛选</string>
+    <string name="search_filter_active">搜索或排序已更改</string>
+    <string name="search_filter_inactive">默认搜索与排序</string>
+    <string name="video_more_actions">%1$s 的更多操作</string>
 
     <string name="nav_home">首页</string>
     <string name="nav_folders">文件夹</string>
