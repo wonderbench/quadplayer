@@ -1,6 +1,9 @@
 package com.quadplayer.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.GridView
@@ -10,6 +13,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.quadplayer.ui.theme.RoundNavigationIcon
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -82,11 +89,14 @@ fun QuadPlayerApp(activityViewModel: MainActivityViewModel) {
 
     val entry by navController.currentBackStackEntryAsState()
     val playbackRoute = entry?.destination?.route in setOf(Screen.Player.route, Screen.Quad.route)
-    Scaffold(bottomBar = { QuadPlayerBottomBar(navController, bottomDestinations) }) { innerPadding ->
+    val showRail = !playbackRoute && LocalConfiguration.current.screenWidthDp >= 600 && bottomDestinations.any { it.screen.route == entry?.destination?.route }
+    Scaffold(bottomBar = { if (!showRail) QuadPlayerBottomBar(navController, bottomDestinations) }) { innerPadding ->
+        Row(Modifier.fillMaxSize()) {
+        if (showRail) QuadPlayerNavigationRail(navController, bottomDestinations)
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = if (playbackRoute) Modifier else Modifier.padding(innerPadding),
+            modifier = if (playbackRoute) Modifier.weight(1f) else Modifier.weight(1f).padding(innerPadding),
         ) {
             composable(Screen.Home.route) {
                 val viewModel: HomeViewModel = hiltViewModel()
@@ -135,6 +145,7 @@ fun QuadPlayerApp(activityViewModel: MainActivityViewModel) {
                 )
             }
         }
+        }
     }
     if (externalOpenFailed) {
         AlertDialog(
@@ -142,6 +153,29 @@ fun QuadPlayerApp(activityViewModel: MainActivityViewModel) {
             text = { Text(stringResource(R.string.external_video_open_failed)) },
             confirmButton = { TextButton(onClick = { externalOpenFailed = false }) { Text(stringResource(R.string.common_close)) } },
         )
+    }
+}
+
+@Composable
+private fun QuadPlayerNavigationRail(navController: NavHostController, destinations: List<BottomDestination>) {
+    val entry by navController.currentBackStackEntryAsState()
+    NavigationRail(modifier = Modifier.fillMaxHeight(), containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface) {
+        destinations.forEach { destination ->
+            val selected = entry?.destination?.hierarchy?.any { it.route == destination.screen.route } == true
+            NavigationRailItem(
+                selected = selected,
+                onClick = {
+                    navController.navigate(destination.screen.route) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                icon = { RoundNavigationIcon(selected) { destination.icon() } },
+                label = { Text(stringResource(destination.labelRes), maxLines = 1) },
+                colors = NavigationRailItemDefaults.colors(indicatorColor = Color.Transparent),
+            )
+        }
     }
 }
 
