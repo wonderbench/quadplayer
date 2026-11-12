@@ -16,6 +16,8 @@ enum class PlaybackState {
 
 enum class LayoutMode {
     EQUAL_GRID,
+    FOCUS_GRID,
+    SINGLE,
 }
 
 enum class DecoderMode {

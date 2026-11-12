@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 data class QuadPlayerUiState(
     val slots: List<QuadSlotUiState> = List(4) { QuadSlotUiState(index = it) },
     val layoutMode: LayoutMode = LayoutMode.EQUAL_GRID,
+    val focusedSlot: Int = 0,
     val settings: AppSettings = AppSettings(),
     val warningMessage: String? = null,
     val pendingSwapSource: Int? = null,
@@ -50,12 +51,13 @@ class QuadPlayerViewModel @Inject constructor(
 
     private val baseUiState = combine(
         engine.slotStates(audioSourceManager.currentAudioSource),
-        layoutManager.layoutMode,
+        layoutManager.state,
         settingsRepository.settings,
-    ) { slots, layoutMode, settings ->
+    ) { slots, layout, settings ->
         QuadPlayerUiState(
             slots = slots,
-            layoutMode = layoutMode,
+            layoutMode = layout.mode,
+            focusedSlot = layout.focusedSlot,
             settings = settings,
         )
     }
@@ -156,6 +158,10 @@ class QuadPlayerViewModel @Inject constructor(
     fun setGlobalSpeed(speed: PlaybackSpeed) {
         engine.setGlobalSpeed(speed)
     }
+
+    fun focusSlot(slotIndex: Int, single: Boolean = false) = layoutManager.focus(slotIndex, single)
+
+    fun resetLayout() = layoutManager.reset()
 
     fun beginSwap(slotIndex: Int) {
         pendingSwapSource.value = slotIndex
