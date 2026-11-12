@@ -53,7 +53,7 @@ interface PlaylistRepository {
     suspend fun deletePlaylist(playlistId: Long)
     suspend fun addVideo(playlistId: Long, videoId: Long)
     suspend fun removeVideo(playlistId: Long, videoId: Long)
-    suspend fun moveVideo(playlistId: Long, fromIndex: Int, toIndex: Int)
+    suspend fun swapVideos(playlistId: Long, firstVideoId: Long, secondVideoId: Long)
 }
 
 @Singleton
@@ -148,6 +148,7 @@ class DefaultHistoryRepository @Inject constructor(
 @Singleton
 class DefaultPlaylistRepository @Inject constructor(
     private val playlistDao: PlaylistDao,
+    private val database: QuadPlayerDatabase,
 ) : PlaylistRepository {
     override val playlists: Flow<List<PlaylistSummary>> = playlistDao.observePlaylists().map { rows ->
         rows.map { it.toModel() }
@@ -193,14 +194,17 @@ class DefaultPlaylistRepository @Inject constructor(
         touchPlaylist(playlistId)
     }
 
-    override suspend fun moveVideo(playlistId: Long, fromIndex: Int, toIndex: Int) = withContext(Dispatchers.IO) {
-        val entries = playlistDao.getPlaylistEntries(playlistId).toMutableList()
-        if (fromIndex !in entries.indices || toIndex !in entries.indices) return@withContext
-        val moved = entries.removeAt(fromIndex)
-        entries.add(toIndex, moved)
-        playlistDao.clearPlaylistEntries(playlistId)
-        playlistDao.upsertEntries(entries.mapIndexed { index, entry -> entry.copy(sortOrder = index) })
-        touchPlaylist(playlistId)
+    override suspend fun swapVideos(playlistId: Long, firstVideoId: Long, secondVideoId: Long) = withContext(Dispatchers.IO) {
+        if (firstVideoId == secondVideoId) return@withContext
+        database.withTransaction {
+            val visible = playlistDao.getVisibleVideoIds(playlistId).toSet()
+            if (firstVideoId !in visible || secondVideoId !in visible) return@withTransaction
+            val entries = playlistDao.getPlaylistEntries(playlistId)
+            val first = entries.firstOrNull { it.videoId == firstVideoId } ?: return@withTransaction
+            val second = entries.firstOrNull { it.videoId == secondVideoId } ?: return@withTransaction
+            playlistDao.upsertEntries(listOf(first.copy(sortOrder = second.sortOrder), second.copy(sortOrder = first.sortOrder)))
+            touchPlaylist(playlistId)
+        }
     }
 
     private suspend fun reindexPlaylist(playlistId: Long) {
