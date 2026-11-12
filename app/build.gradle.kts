@@ -8,6 +8,20 @@ plugins {
     id("com.google.dagger.hilt.android")
 }
 
+val releaseStore = providers.environmentVariable("QP_RELEASE_STORE_FILE").orNull
+val releaseStorePassword = providers.environmentVariable("QP_RELEASE_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("QP_RELEASE_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("QP_RELEASE_KEY_PASSWORD").orNull
+val releaseSigningValues = listOf(releaseStore, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
+require(releaseSigningValues.all { it.isNullOrBlank() } || releaseSigningValues.none { it.isNullOrBlank() }) {
+    "Set all four QP_RELEASE_* signing variables, or none for an unsigned release."
+}
+val suppliedVersionCode = providers.environmentVariable("QP_VERSION_CODE").orNull
+val releaseVersionCode = suppliedVersionCode?.toIntOrNull()
+require(suppliedVersionCode == null || (releaseVersionCode != null && releaseVersionCode > 0)) {
+    "QP_VERSION_CODE must be a positive integer."
+}
+
 android {
     namespace = "com.quadplayer"
     compileSdk = 35
@@ -16,15 +30,26 @@ android {
         applicationId = "com.quadplayer"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = releaseVersionCode ?: 1
+        versionName = providers.environmentVariable("QP_VERSION_NAME").orNull ?: "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
 
+    signingConfigs {
+        if (!releaseStore.isNullOrBlank()) create("externalRelease") {
+            storeFile = file(releaseStore)
+            storePassword = releaseStorePassword
+            keyAlias = releaseKeyAlias
+            keyPassword = releaseKeyPassword
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.findByName("externalRelease")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
