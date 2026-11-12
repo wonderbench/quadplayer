@@ -15,6 +15,7 @@ data class QuadSlotUiState(
     val isPlaying: Boolean = false,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
+    val errorMessage: String? = null,
 )
 
 class QuadPlaybackEngine(
@@ -41,6 +42,7 @@ class QuadPlaybackEngine(
                     isPlaying = state.isPlaying,
                     positionMs = state.currentPositionMs,
                     durationMs = state.durationMs,
+                    errorMessage = state.errorMessage,
                 )
             }
         }

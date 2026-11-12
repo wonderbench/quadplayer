@@ -107,6 +107,7 @@
     <string name="player_switch_landscape">横屏</string>
     <string name="player_switch_portrait">竖屏</string>
     <string name="player_seek_forward">快进 %1$d 秒</string>
+    <string name="player_retry">重试</string>
     <string name="player_error_failed">播放失败</string>
     <string name="player_video_not_found">未找到该视频</string>
     <string name="player_external_audio_failed">外挂音轨加载失败</string>

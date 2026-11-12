@@ -220,6 +220,9 @@ fun PlayerScreen(
                         text = message,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
+                    if (state.playerState.errorMessage != null) {
+                        TextButton(onClick = viewModel::retry) { Text(stringResource(R.string.player_retry)) }
+                    }
                     if (state.statusMessage != null) {
                         TextButton(onClick = viewModel::clearStatusMessage) {
                             Text(stringResource(R.string.common_close))
