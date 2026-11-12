@@ -143,6 +143,7 @@ require(suppliedVersionCode == null || (releaseVersionCode != null && releaseVer
 }
 
 android {
+    sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
     namespace = "com.quadplayer"
     compileSdk = 36
 
@@ -255,6 +256,7 @@ dependencies {
 
     debugImplementation(libs.composeTooling)
     androidTestImplementation(libs.androidxTestJunit)
+    androidTestImplementation(libs.roomTesting)
     androidTestImplementation(libs.androidxTestRunner)
     androidTestImplementation(libs.androidxTestCore)
     androidTestImplementation(libs.espressoCore)
