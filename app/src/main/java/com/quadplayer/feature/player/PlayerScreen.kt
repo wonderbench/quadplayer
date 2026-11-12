@@ -36,9 +36,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.ScreenRotationAlt
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -266,8 +269,14 @@ fun PlayerScreen(
                 if (isLandscapeMode) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = viewModel::previous, enabled = state.queue.hasPrevious) {
+                                Icon(Icons.Rounded.SkipPrevious, contentDescription = stringResource(R.string.player_previous))
+                            }
                             TextButton(onClick = viewModel::togglePlayPause) {
                                 Text(stringResource(if (state.playerState.isPlaying) R.string.common_pause else R.string.common_play))
+                            }
+                            IconButton(onClick = viewModel::next, enabled = state.queue.hasNext) {
+                                Icon(Icons.Rounded.SkipNext, contentDescription = stringResource(R.string.player_next))
                             }
                             Text(formatDuration(if (isSeeking) seekPosition.toLong() else state.playerState.currentPositionMs))
                             Slider(
@@ -283,6 +292,7 @@ fun PlayerScreen(
                                 DropdownMenu(expanded = showMore, onDismissRequest = { showMore = false }) {
                                     DropdownMenuItem(text = { Text(stringResource(R.string.player_audio)) }, onClick = { showMore = false; showAudioDialog = true })
                                     DropdownMenuItem(text = { Text(stringResource(R.string.player_subtitle)) }, onClick = { showMore = false; showSubtitleDialog = true })
+                                    DropdownMenuItem(text = { Text(stringResource(if (state.queue.repeatOne) R.string.player_repeat_one_on else R.string.player_repeat_one_off)) }, onClick = { showMore = false; viewModel.toggleRepeatOne() })
                                     DropdownMenuItem(text = { Text(stringResource(R.string.player_aspect)) }, onClick = { showMore = false; viewModel.cycleAspectMode() })
                                     PlaybackSpeed.entries.forEach { speed ->
                                         DropdownMenuItem(text = { Text(speed.label) }, onClick = { showMore = false; viewModel.setSpeed(speed) })
@@ -349,6 +359,9 @@ fun PlayerScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        IconButton(onClick = viewModel::previous, enabled = state.queue.hasPrevious) {
+                            Icon(Icons.Rounded.SkipPrevious, contentDescription = stringResource(R.string.player_previous))
+                        }
                         TextButton(onClick = viewModel::togglePlayPause) {
                             Text(
                                 if (state.playerState.isPlaying) {
@@ -357,6 +370,12 @@ fun PlayerScreen(
                                     stringResource(R.string.common_play)
                                 },
                             )
+                        }
+                        IconButton(onClick = viewModel::next, enabled = state.queue.hasNext) {
+                            Icon(Icons.Rounded.SkipNext, contentDescription = stringResource(R.string.player_next))
+                        }
+                        TextButton(onClick = viewModel::toggleRepeatOne) {
+                            Text(stringResource(if (state.queue.repeatOne) R.string.player_repeat_one_on else R.string.player_repeat_one_off))
                         }
                         PlaybackSpeed.entries.forEach { speed ->
                             AssistChip(

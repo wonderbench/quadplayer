@@ -7,10 +7,13 @@ import androidx.lifecycle.viewModelScope
 import com.quadplayer.R
 import com.quadplayer.core.data.HistoryWriteQueue
 import com.quadplayer.core.data.PlaybackHistorySession
+import com.quadplayer.core.data.PlaylistRepository
 import com.quadplayer.core.data.SettingsRepository
 import com.quadplayer.core.data.VideoRepository
 import com.quadplayer.core.model.AppSettings
 import com.quadplayer.core.model.PlaybackSpeed
+import com.quadplayer.core.model.PlaybackState
+import androidx.media3.common.Player
 import com.quadplayer.core.model.VideoFile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -22,6 +25,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -31,6 +36,7 @@ data class PlayerScreenState(
     val playerState: PlayerUiState = PlayerUiState(),
     val controlsVisible: Boolean = true,
     val statusMessage: String? = null,
+    val queue: PlaybackQueueState = PlaybackQueueState(),
 )
 
 @HiltViewModel
@@ -38,6 +44,7 @@ class PlayerViewModel @Inject constructor(
     @ApplicationContext context: android.content.Context,
     savedStateHandle: SavedStateHandle,
     private val videoRepository: VideoRepository,
+    private val playlistRepository: PlaylistRepository,
     private val historyWriteQueue: HistoryWriteQueue,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
@@ -47,23 +54,25 @@ class PlayerViewModel @Inject constructor(
     private val video = MutableStateFlow<VideoFile?>(null)
     private val controlsVisible = MutableStateFlow(true)
     private val statusMessage = MutableStateFlow<String?>(null)
+    private val queue = MutableStateFlow(PlaybackQueueState())
+    private var loading = false
+    private val playlistId: Long = savedStateHandle["playlistId"] ?: -1L
     private var historyJob: Job? = null
     private val videoId: Long = savedStateHandle["videoId"] ?: -1L
 
-    val state: StateFlow<PlayerScreenState> = combine(
-        video,
-        settingsRepository.settings,
-        playerController.uiState,
-        controlsVisible,
-        statusMessage,
-    ) { currentVideo, settings, playerState, isControlsVisible, screenMessage ->
+    private val playbackState = combine(
+        video, settingsRepository.settings, playerController.uiState, controlsVisible, statusMessage,
+    ) { currentVideo, settings, playerState, visible, message ->
         PlayerScreenState(
             video = currentVideo,
             settings = settings,
             playerState = playerState,
-            controlsVisible = isControlsVisible,
-            statusMessage = screenMessage,
+            controlsVisible = visible,
+            statusMessage = message,
         )
+    }
+    val state: StateFlow<PlayerScreenState> = combine(playbackState, queue) { playback, currentQueue ->
+        playback.copy(queue = currentQueue)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlayerScreenState())
 
     val controller: PlayerController
@@ -75,24 +84,60 @@ class PlayerViewModel @Inject constructor(
                 playerController.applySettings(settings)
             }
         }
-        if (videoId < 0) {
-            statusMessage.value = appContext.getString(R.string.player_video_not_found)
-        } else {
-            viewModelScope.launch {
-                val currentVideo = videoRepository.getVideo(videoId)
-                if (currentVideo == null) {
+        viewModelScope.launch {
+            if (videoId < 0) {
+                statusMessage.value = appContext.getString(R.string.player_video_not_found)
+                return@launch
+            }
+            val ids = if (playlistId >= 0) playlistRepository.observePlaylistVideos(playlistId).first().map { it.id } else emptyList()
+            queue.value = PlaybackQueueState.from(ids, videoId)
+            openIndex(queue.value.index, resume = true)
+        }
+        viewModelScope.launch {
+            playerController.uiState.map { it.playbackState }.distinctUntilChanged().collect { playback ->
+                if (playback == PlaybackState.ENDED && !queue.value.repeatOne) next()
+            }
+        }
+    }
+
+    private fun openIndex(index: Int, resume: Boolean = false, direction: Int = 1) {
+        if (loading || index !in queue.value.ids.indices) return
+        loading = true
+        viewModelScope.launch {
+            try {
+                var candidate = index
+                var nextVideo: VideoFile? = null
+                while (candidate in queue.value.ids.indices && nextVideo == null) {
+                    nextVideo = videoRepository.getVideo(queue.value.ids[candidate])
+                    if (nextVideo == null) candidate += direction
+                }
+                if (nextVideo == null) {
                     statusMessage.value = appContext.getString(R.string.player_video_not_found)
                     return@launch
                 }
-                video.value = currentVideo
-                statusMessage.value = null
+                savePosition()
+                historySession.clear()
+                playerController.pause()
                 val settings = settingsRepository.settings.first()
-                val resumePosition = if (settings.autoResume) historyWriteQueue.getResumePosition(videoId) else 0L
-                playerController.load(currentVideo, resumePosition)
-                historySession.markLoaded(currentVideo.id)
+                val position = if (resume && settings.autoResume) {
+                    normalizeResumePosition(historyWriteQueue.getResumePosition(nextVideo.id), nextVideo.durationMs)
+                } else 0L
+                playerController.load(nextVideo, position)
+                historySession.markLoaded(nextVideo.id)
+                video.value = nextVideo
+                queue.value = queue.value.copy(index = candidate)
+                statusMessage.value = null
                 startHistorySaver()
-            }
+            } finally { loading = false }
         }
+    }
+
+    fun previous() = openIndex(queue.value.index - 1, direction = -1)
+    fun next() = openIndex(queue.value.index + 1)
+    fun toggleRepeatOne() {
+        val repeat = !queue.value.repeatOne
+        queue.value = queue.value.copy(repeatOne = repeat)
+        playerController.player.repeatMode = if (repeat) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
     }
 
     fun togglePlayPause() {
@@ -172,7 +217,8 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun savePosition() {
-        historySession.capture(playerController.player.currentPosition)
+        val player = playerController.player
+        historySession.capture(if (player.playbackState == Player.STATE_ENDED) 0L else player.currentPosition)
     }
 
     override fun onCleared() {
