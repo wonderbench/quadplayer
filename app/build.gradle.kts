@@ -24,12 +24,12 @@ require(suppliedVersionCode == null || (releaseVersionCode != null && releaseVer
 
 android {
     namespace = "com.quadplayer"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.quadplayer"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = releaseVersionCode ?: 1
         versionName = providers.environmentVariable("QP_VERSION_NAME").orNull ?: "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
