@@ -32,7 +32,7 @@ data class PlayerScreenState(
     val settings: AppSettings = AppSettings(),
     val playerState: PlayerUiState = PlayerUiState(),
     val controlsVisible: Boolean = true,
-    val statusMessage: String? = null,
+    @androidx.annotation.StringRes val statusMessage: Int? = null,
     val queue: PlaybackQueueState = PlaybackQueueState(),
 )
 
@@ -46,10 +46,9 @@ class PlaybackSession(
 ) : ViewModel() {
     private val playerController = PlayerController(context, handleAudioFocus = true, rememberTrackChoices = true)
     private val historySession = PlaybackHistorySession(historyWriteQueue)
-    private val appContext = context
     private val video = MutableStateFlow<VideoFile?>(null)
     private val controlsVisible = MutableStateFlow(true)
-    private val statusMessage = MutableStateFlow<String?>(null)
+    private val statusMessage = MutableStateFlow<Int?>(null)
     private val queue = MutableStateFlow(PlaybackQueueState())
     private var loading = false
     var backgroundEnabled: Boolean = false
@@ -89,7 +88,7 @@ class PlaybackSession(
         }
         viewModelScope.launch {
             if (videoId < 0) {
-                statusMessage.value = appContext.getString(R.string.player_video_not_found)
+                statusMessage.value = R.string.player_video_not_found
                 return@launch
             }
             val ids = if (playlistId >= 0) playlistRepository.observePlaylistVideos(playlistId).first().map { it.id } else emptyList()
@@ -115,7 +114,7 @@ class PlaybackSession(
                     if (nextVideo == null) candidate += direction
                 }
                 if (nextVideo == null) {
-                    statusMessage.value = appContext.getString(R.string.player_video_not_found)
+                    statusMessage.value = R.string.player_video_not_found
                     return@launch
                 }
                 savePosition()
@@ -169,7 +168,7 @@ class PlaybackSession(
             }.onSuccess {
                 statusMessage.value = null
             }.onFailure {
-                statusMessage.value = appContext.getString(R.string.player_external_subtitle_failed)
+                statusMessage.value = R.string.player_external_subtitle_failed
             }
         }
     }
@@ -181,12 +180,12 @@ class PlaybackSession(
             }.onSuccess {
                 statusMessage.value = null
             }.onFailure {
-                statusMessage.value = appContext.getString(R.string.player_external_audio_failed)
+                statusMessage.value = R.string.player_external_audio_failed
             }
         }
     }
 
-    fun showServiceError() { statusMessage.value = appContext.getString(R.string.player_service_failed) }
+    fun showServiceError() { statusMessage.value = R.string.player_service_failed }
 
     fun clearStatusMessage() {
         statusMessage.value = null
