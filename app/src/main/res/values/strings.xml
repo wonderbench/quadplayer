@@ -120,6 +120,8 @@
     <string name="player_track_fallback">轨道 %1$d</string>
 
     <string name="quad_title">四宫格播放</string>
+    <string name="player_brightness">亮度</string>
+    <string name="player_volume">音量</string>
     <string name="quad_dismiss">关闭提示</string>
     <string name="quad_play_pause_all">全部播放/暂停</string>
     <string name="quad_sync_to_audio">同步到当前音源</string>
