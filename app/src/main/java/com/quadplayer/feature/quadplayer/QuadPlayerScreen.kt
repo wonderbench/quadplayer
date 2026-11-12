@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
@@ -191,6 +192,9 @@ fun QuadPlayerScreen(
                 }
                 menuSlot = null
             },
+            onTogglePlayback = { viewModel.toggleSlot(slotIndex); menuSlot = null },
+            onSetSpeed = { speed -> viewModel.setSlotSpeed(slotIndex, speed); menuSlot = null },
+            onSwitchAudio = { viewModel.toggleAudioSource(slotIndex); menuSlot = null },
             onReplace = {
                 pendingSlot = slotIndex
                 menuSlot = null
@@ -490,6 +494,16 @@ private fun QuadSlotContent(
                         }
                     }
                 }
+                Surface(
+                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                    shape = MaterialTheme.shapes.small,
+                ) {
+                    IconButton(onClick = { onSwitchAudio(slot.index) }) {
+                        Icon(Icons.Rounded.VolumeUp, contentDescription = stringResource(R.string.quad_select_audio),
+                            tint = if (slot.isAudioSource) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
+                    }
+                }
                 if (slot.isAudioSource) {
                     Surface(
                         modifier = Modifier
@@ -536,6 +550,9 @@ private fun SlotMenuDialog(
     onRemove: () -> Unit,
     onSwap: () -> Unit,
     onReplace: () -> Unit,
+    onTogglePlayback: () -> Unit,
+    onSetSpeed: (PlaybackSpeed) -> Unit,
+    onSwitchAudio: () -> Unit,
 ) {
     val swapLabel = when (pendingSwapSource) {
         null -> stringResource(R.string.quad_start_swap)
@@ -550,6 +567,21 @@ private fun SlotMenuDialog(
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
                     Text(stringResource(R.string.quad_slot_label, slot.index + 1))
+                }
+                item {
+                    TextButton(onClick = onTogglePlayback) {
+                        Text(stringResource(if (shouldPauseOnToggle(slot.playWhenReady, slot.playbackEnded)) R.string.common_pause else R.string.common_play))
+                    }
+                }
+                item {
+                    TextButton(onClick = onSwitchAudio) { Text(stringResource(R.string.quad_select_audio)) }
+                }
+                item {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        PlaybackSpeed.entries.forEach { speed ->
+                            AssistChip(onClick = { onSetSpeed(speed) }, label = { Text(if (speed == slot.playbackSpeed) "✓ ${speed.label}" else speed.label) })
+                        }
+                    }
                 }
                 item {
                     TextButton(onClick = onReplace) {

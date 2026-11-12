@@ -58,6 +58,7 @@ data class PlayerUiState(
     val selectedExternalSubtitle: String? = null,
     val selectedExternalAudio: String? = null,
     val errorMessage: String? = null,
+    val playWhenReady: Boolean = false,
 )
 
 @OptIn(UnstableApi::class)
@@ -76,6 +77,10 @@ class PlayerController(
         }
 
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            updateStateFromPlayer()
+        }
+
+        override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             updateStateFromPlayer()
         }
 
@@ -155,6 +160,7 @@ class PlayerController(
         currentVideo = null
         externalSubtitleUri = null
         externalAudioUri = null
+        player.pause()
         player.stop()
         player.clearMediaItems()
         _uiState.value = _uiState.value.copy(errorMessage = null)
@@ -337,6 +343,7 @@ class PlayerController(
                 else -> PlaybackState.IDLE
             },
             isPlaying = player.isPlaying,
+            playWhenReady = player.playWhenReady,
             currentPositionMs = player.currentPosition,
             durationMs = player.duration.coerceAtLeast(0L),
             bufferedPercent = player.bufferedPercentage,

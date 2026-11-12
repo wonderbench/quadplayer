@@ -1,8 +1,10 @@
 package com.quadplayer.feature.quadplayer
 
 import android.content.Context
+import androidx.media3.common.Player
 import com.quadplayer.core.model.AppSettings
 import com.quadplayer.core.model.PlaybackSpeed
+import com.quadplayer.core.model.PlaybackState
 import com.quadplayer.core.model.VideoFile
 import com.quadplayer.feature.player.PlayerController
 import kotlinx.coroutines.flow.Flow
@@ -13,9 +15,12 @@ data class QuadSlotUiState(
     val video: VideoFile? = null,
     val isAudioSource: Boolean = false,
     val isPlaying: Boolean = false,
+    val playbackSpeed: PlaybackSpeed = PlaybackSpeed.X1_0,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val errorMessage: String? = null,
+    val playWhenReady: Boolean = false,
+    val playbackEnded: Boolean = false,
 )
 
 class QuadPlaybackEngine(
@@ -40,9 +45,12 @@ class QuadPlaybackEngine(
                     video = slotVideos[index],
                     isAudioSource = audioSource == index,
                     isPlaying = state.isPlaying,
+                    playbackSpeed = state.playbackSpeed,
                     positionMs = state.currentPositionMs,
                     durationMs = state.durationMs,
                     errorMessage = state.errorMessage,
+                    playWhenReady = state.playWhenReady,
+                    playbackEnded = state.playbackState == PlaybackState.ENDED,
                 )
             }
         }
@@ -88,10 +96,27 @@ class QuadPlaybackEngine(
         }
     }
 
+    fun currentPosition(slotIndex: Int): Long? =
+        if (slotVideos[slotIndex] != null) controllers[slotIndex].player.currentPosition else null
+
+    fun toggleSlot(slotIndex: Int) {
+        if (slotVideos[slotIndex] == null) return
+        val player = controllers[slotIndex].player
+        if (player.playbackState == Player.STATE_ENDED) {
+            player.seekToDefaultPosition()
+            player.play()
+        } else if (shouldPauseOnToggle(player.playWhenReady, ended = false)) player.pause() else player.play()
+    }
+
+    fun setSlotSpeed(slotIndex: Int, speed: PlaybackSpeed) {
+        if (slotVideos[slotIndex] != null) controllers[slotIndex].setPlaybackSpeed(speed)
+    }
+
     fun syncToPosition(positionMs: Long) {
         controllers.forEachIndexed { index, controller ->
             if (slotVideos[index] != null) {
-                controller.seekTo(positionMs)
+                val duration = controller.player.duration
+                controller.seekTo(if (duration > 0) positionMs.coerceAtMost(duration) else positionMs)
             }
         }
     }
@@ -124,3 +149,5 @@ class QuadVolumeTarget(
         controller.player.volume = volume
     }
 }
+
+internal fun shouldPauseOnToggle(playWhenReady: Boolean, ended: Boolean): Boolean = playWhenReady && !ended
