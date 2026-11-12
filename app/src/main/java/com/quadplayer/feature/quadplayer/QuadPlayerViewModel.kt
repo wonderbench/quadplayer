@@ -139,9 +139,13 @@ class QuadPlayerViewModel @Inject constructor(
     fun syncToAudioSource() {
         val sourceIndex = audioSourceManager.currentAudioSource.value
         if (sourceIndex !in 0..3) return
-        val sourceState = uiState.value.slots[sourceIndex]
-        engine.syncToPosition(sourceState.positionMs)
+        val position = engine.currentPosition(sourceIndex) ?: return
+        engine.syncToPosition(position)
     }
+
+    fun toggleSlot(slotIndex: Int) = engine.toggleSlot(slotIndex)
+
+    fun setSlotSpeed(slotIndex: Int, speed: PlaybackSpeed) = engine.setSlotSpeed(slotIndex, speed)
 
     fun retrySlot(slotIndex: Int) = engine.controllerAt(slotIndex).retry()
 

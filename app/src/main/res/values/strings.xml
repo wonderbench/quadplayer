@@ -121,6 +121,7 @@
     <string name="quad_sync_to_audio">同步到当前音源</string>
     <string name="quad_mute_all">全部静音</string>
     <string name="quad_speed_title">倍速</string>
+    <string name="quad_select_audio">切换到此视频的声音</string>
     <string name="quad_current_audio">当前音源</string>
     <string name="quad_tap_to_add">点击选择本地视频</string>
     <string name="quad_slot_actions">槽位操作</string>

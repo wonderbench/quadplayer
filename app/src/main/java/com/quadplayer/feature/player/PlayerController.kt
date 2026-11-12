@@ -155,6 +155,7 @@ class PlayerController(
         currentVideo = null
         externalSubtitleUri = null
         externalAudioUri = null
+        player.pause()
         player.stop()
         player.clearMediaItems()
         _uiState.value = _uiState.value.copy(errorMessage = null)

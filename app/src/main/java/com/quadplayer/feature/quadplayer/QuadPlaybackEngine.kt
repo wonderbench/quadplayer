@@ -13,6 +13,7 @@ data class QuadSlotUiState(
     val video: VideoFile? = null,
     val isAudioSource: Boolean = false,
     val isPlaying: Boolean = false,
+    val playbackSpeed: PlaybackSpeed = PlaybackSpeed.X1_0,
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val errorMessage: String? = null,
@@ -40,6 +41,7 @@ class QuadPlaybackEngine(
                     video = slotVideos[index],
                     isAudioSource = audioSource == index,
                     isPlaying = state.isPlaying,
+                    playbackSpeed = state.playbackSpeed,
                     positionMs = state.currentPositionMs,
                     durationMs = state.durationMs,
                     errorMessage = state.errorMessage,
@@ -88,10 +90,24 @@ class QuadPlaybackEngine(
         }
     }
 
+    fun currentPosition(slotIndex: Int): Long? =
+        if (slotVideos[slotIndex] != null) controllers[slotIndex].player.currentPosition else null
+
+    fun toggleSlot(slotIndex: Int) {
+        if (slotVideos[slotIndex] == null) return
+        val player = controllers[slotIndex].player
+        if (player.playWhenReady) player.pause() else player.play()
+    }
+
+    fun setSlotSpeed(slotIndex: Int, speed: PlaybackSpeed) {
+        if (slotVideos[slotIndex] != null) controllers[slotIndex].setPlaybackSpeed(speed)
+    }
+
     fun syncToPosition(positionMs: Long) {
         controllers.forEachIndexed { index, controller ->
             if (slotVideos[index] != null) {
-                controller.seekTo(positionMs)
+                val duration = controller.player.duration
+                controller.seekTo(if (duration > 0) positionMs.coerceAtMost(duration) else positionMs)
             }
         }
     }
