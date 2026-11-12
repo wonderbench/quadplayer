@@ -153,11 +153,15 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(state.controlsVisible, state.playerState.isPlaying, state.video?.id, isSeeking) {
-        if (state.controlsVisible && state.playerState.isPlaying && !isSeeking) {
+    LaunchedEffect(state.controlsVisible, state.playerState.isPlaying, state.video?.id, isSeeking, showMore, showAudioDialog, showSubtitleDialog) {
+        if (state.controlsVisible && state.playerState.isPlaying && !isSeeking && !showMore && !showAudioDialog && !showSubtitleDialog) {
             delay(3000)
             viewModel.hideControls()
         }
+    }
+
+    LaunchedEffect(state.controlsVisible) {
+        if (!state.controlsVisible) showMore = false
     }
 
     val playerMessage = state.statusMessage ?: if (state.playerState.errorMessage != null) {
