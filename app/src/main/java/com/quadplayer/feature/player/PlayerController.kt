@@ -2,6 +2,7 @@ package com.quadplayer.feature.player
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.AudioAttributes
@@ -28,7 +29,6 @@ import com.quadplayer.core.model.DecoderMode
 import com.quadplayer.core.model.PlaybackSpeed
 import com.quadplayer.core.model.PlaybackState
 import com.quadplayer.core.model.VideoFile
-import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -106,7 +106,11 @@ class PlayerController(
     private var progressJob: Job? = null
     private var currentVideo: VideoFile? = null
     private var externalSubtitleUri: Uri? = null
+    private var externalSubtitleMime: String? = null
+    private var subtitleSelectionExplicit = false
     private var externalAudioUri: Uri? = null
+    private var released = false
+    private var loadGeneration = 0L
 
     init {
         playerInternal.addListener(playerListener)
@@ -127,27 +131,53 @@ class PlayerController(
         setPlaybackSpeed(settings.defaultPlaybackSpeed)
     }
 
-    suspend fun load(video: VideoFile, startPositionMs: Long = 0L, playWhenReady: Boolean = true) {
-        if (currentVideo?.uriString != video.uriString) {
+    suspend fun load(video: VideoFile, startPositionMs: Long = 0L, playWhenReady: Boolean = true): Boolean {
+        if (released) return false
+        val request = ++loadGeneration
+        val isNewVideo = currentVideo?.uriString != video.uriString
+        if (isNewVideo) {
             externalSubtitleUri = null
+            externalSubtitleMime = null
+            subtitleSelectionExplicit = false
             externalAudioUri = null
         }
         _uiState.value = _uiState.value.copy(errorMessage = null)
         currentVideo = video
-        if (externalSubtitleUri == null) {
-            externalSubtitleUri = autoDetectSubtitle(video)
+        if (isNewVideo) {
+            val matchingFile = withContext(Dispatchers.IO) { findLocalSubtitle(video.localPath) }
+            if (released || request != loadGeneration) return false
+            if (!subtitleSelectionExplicit && matchingFile != null) {
+                externalSubtitleUri = Uri.fromFile(matchingFile)
+                externalSubtitleMime = subtitleMimeType(matchingFile.name, null)
+            }
         }
-        withContext(Dispatchers.Main.immediate) {
+        return withContext(Dispatchers.Main.immediate) {
+            if (released || request != loadGeneration) return@withContext false
             val source = buildMediaSource(video.uri, externalSubtitleUri, externalAudioUri)
             player.setMediaSource(source)
             player.prepare()
             player.seekTo(startPositionMs)
             player.playWhenReady = playWhenReady
+            true
         }
     }
 
     suspend fun setExternalSubtitle(uri: Uri?) {
+        val videoBeforeQuery = currentVideo?.uriString
+        val mime = uri?.let { selected -> withContext(Dispatchers.IO) {
+            val resolver = context.contentResolver
+            val name = runCatching {
+                resolver.query(selected, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+                }
+            }.getOrNull()
+            subtitleMimeType(name ?: selected.lastPathSegment, runCatching { resolver.getType(selected) }.getOrNull())
+        } }
+        if (released || currentVideo?.uriString != videoBeforeQuery) return
+        subtitleSelectionExplicit = true
         externalSubtitleUri = uri
+        externalSubtitleMime = mime
         reloadCurrent()
     }
 
@@ -161,8 +191,11 @@ class PlayerController(
     }
 
     fun clear() {
+        loadGeneration++
         currentVideo = null
         externalSubtitleUri = null
+        externalSubtitleMime = null
+        subtitleSelectionExplicit = false
         externalAudioUri = null
         player.pause()
         player.stop()
@@ -232,6 +265,9 @@ class PlayerController(
     }
 
     fun release() {
+        if (released) return
+        released = true
+        loadGeneration++
         progressJob?.cancel()
         player.removeListener(playerListener)
         player.release()
@@ -239,8 +275,9 @@ class PlayerController(
 
     private suspend fun reloadCurrent() {
         val video = currentVideo ?: return
-        val position = _uiState.value.currentPositionMs
-        load(video, position)
+        val position = player.currentPosition
+        val wasPlaying = player.playWhenReady
+        load(video, position, playWhenReady = wasPlaying)
     }
 
     private fun buildPlayer(decoderMode: DecoderMode): ExoPlayer {
@@ -329,14 +366,8 @@ class PlayerController(
         }
 
     private fun buildSubtitleConfiguration(uri: Uri): MediaItem.SubtitleConfiguration {
-        val mimeType = when (uri.toString().substringAfterLast('.', "").lowercase()) {
-            "srt" -> MimeTypes.APPLICATION_SUBRIP
-            "ass", "ssa" -> MimeTypes.TEXT_SSA
-            "vtt" -> MimeTypes.TEXT_VTT
-            else -> MimeTypes.TEXT_VTT
-        }
         return MediaItem.SubtitleConfiguration.Builder(uri)
-            .setMimeType(mimeType)
+            .setMimeType(externalSubtitleMime ?: MimeTypes.TEXT_VTT)
             .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
             .build()
     }
@@ -388,14 +419,4 @@ class PlayerController(
         return options
     }
 
-    private fun autoDetectSubtitle(video: VideoFile): Uri? {
-        val path = video.localPath ?: return null
-        val file = File(path)
-        val baseName = file.nameWithoutExtension
-        val parent = file.parentFile ?: return null
-        return listOf("srt", "ass", "ssa", "vtt")
-            .map { File(parent, "$baseName.$it") }
-            .firstOrNull(File::exists)
-            ?.let(Uri::fromFile)
-    }
 }
