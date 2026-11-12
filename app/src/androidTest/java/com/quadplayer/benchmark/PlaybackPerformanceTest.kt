@@ -102,7 +102,7 @@ class PlaybackPerformanceTest {
             check(withTimeoutOrNull(15000) { while (views.any { !it.holder.surface.isValid }) delay(50); true } == true) { "Surfaces not ready" }
             withContext(Dispatchers.Main) {
                 repeat(count) { index ->
-                    val controller = PlayerController(context)
+                    val controller = PlayerController(context, compactLocalBuffer = count == 4)
                     controllers += controller
                     controller.player.volume = 0f
                     controller.player.addListener(object : Player.Listener {

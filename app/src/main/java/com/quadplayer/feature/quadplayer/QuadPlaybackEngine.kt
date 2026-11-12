@@ -69,7 +69,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
         cancelPending(slotIndex)
         val generation = generations[slotIndex]
         val old = slots[slotIndex].value.controller
-        val controller = PlayerController(context)
+        val controller = PlayerController(context, compactLocalBuffer = true)
         pending[slotIndex] = controller
         try {
             controller.applySettings(settings)

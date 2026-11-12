@@ -16,6 +16,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
@@ -67,6 +68,7 @@ data class PlayerUiState(
 class PlayerController(
     private val context: Context,
     private val handleAudioFocus: Boolean = false,
+    private val compactLocalBuffer: Boolean = false,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val dataSourceFactory = DefaultDataSource.Factory(context)
@@ -286,11 +288,16 @@ class PlayerController(
             .setEnableDecoderFallback(decoderMode == DecoderMode.AUTO)
             .setMediaCodecSelector(buildMediaCodecSelector(decoderMode))
 
-        return ExoPlayer.Builder(context, renderersFactory)
+        val builder = ExoPlayer.Builder(context, renderersFactory)
             .setTrackSelector(trackSelector)
             .setAudioAttributes(AudioAttributes.DEFAULT, handleAudioFocus)
             .setHandleAudioBecomingNoisy(handleAudioFocus)
-            .build()
+        if (compactLocalBuffer) {
+            builder.setLoadControl(DefaultLoadControl.Builder()
+                .setBufferDurationsMs(5_000, 15_000, 1_000, 2_000)
+                .build())
+        }
+        return builder.build()
     }
 
     private suspend fun rebuildPlayer(decoderMode: DecoderMode) {
