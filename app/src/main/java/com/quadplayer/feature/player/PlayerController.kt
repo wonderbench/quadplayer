@@ -108,7 +108,7 @@ class PlayerController(
         playerInternal.addListener(playerListener)
         progressJob = scope.launch {
             while (true) {
-                updateStateFromPlayer()
+                updateStateFromPlayer(includeTracks = false)
                 delay(300)
             }
         }
@@ -331,7 +331,7 @@ class PlayerController(
             .build()
     }
 
-    private fun updateStateFromPlayer() {
+    private fun updateStateFromPlayer(includeTracks: Boolean = true) {
         val player = playerInternal
         val tracks = player.currentTracks.groups
         _uiState.value = _uiState.value.copy(
@@ -348,8 +348,8 @@ class PlayerController(
             durationMs = player.duration.coerceAtLeast(0L),
             bufferedPercent = player.bufferedPercentage,
             playbackSpeed = PlaybackSpeed.fromValue(player.playbackParameters.speed),
-            availableAudioTracks = buildTrackOptions(tracks, C.TRACK_TYPE_AUDIO),
-            availableSubtitleTracks = buildTrackOptions(tracks, C.TRACK_TYPE_TEXT),
+            availableAudioTracks = if (includeTracks) buildTrackOptions(tracks, C.TRACK_TYPE_AUDIO) else _uiState.value.availableAudioTracks,
+            availableSubtitleTracks = if (includeTracks) buildTrackOptions(tracks, C.TRACK_TYPE_TEXT) else _uiState.value.availableSubtitleTracks,
             selectedExternalSubtitle = externalSubtitleUri?.lastPathSegment,
             selectedExternalAudio = externalAudioUri?.lastPathSegment,
         )

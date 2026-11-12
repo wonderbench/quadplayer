@@ -467,7 +467,7 @@ private fun QuadSlotContent(
                     modifier = Modifier.fillMaxSize(),
                     factory = { viewContext ->
                         PlayerView(viewContext).apply {
-                            player = viewModel.controllerAt(slot.index).player
+                            player = viewModel.controllerAt(slot.index)?.player
                             useController = false
                             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                             setShutterBackgroundColor(android.graphics.Color.BLACK)
@@ -475,7 +475,7 @@ private fun QuadSlotContent(
                         }
                     },
                     update = { playerView ->
-                        playerView.player = viewModel.controllerAt(slot.index).player
+                        playerView.player = viewModel.controllerAt(slot.index)?.player
                         playerView.setShutterBackgroundColor(android.graphics.Color.BLACK)
                         playerView.setBackgroundColor(android.graphics.Color.BLACK)
                     },
