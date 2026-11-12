@@ -2,6 +2,7 @@ package com.quadplayer.feature.player
 
 import android.content.Context
 import android.net.Uri
+import android.os.Looper
 import android.provider.OpenableColumns
 import androidx.annotation.OptIn
 import androidx.media3.common.C
@@ -17,6 +18,9 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.text.TextOutput
+import androidx.media3.exoplayer.text.TextRenderer
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
@@ -405,7 +409,13 @@ class PlayerController(
 
     private fun buildPlayer(decoderMode: DecoderMode): ExoPlayer {
         trackSelector = DefaultTrackSelector(context)
-        val renderersFactory = DefaultRenderersFactory(context)
+        // Media3 1.5's extraction-time subtitle parser can miss cues spanning a seek.
+        // Legacy decoding loads the complete sidecar so choosing it mid-cue works.
+        val renderersFactory = object : DefaultRenderersFactory(context) {
+            override fun buildTextRenderers(context: Context, output: TextOutput, outputLooper: Looper, extensionRendererMode: Int, out: ArrayList<Renderer>) {
+                out.add(TextRenderer(output, outputLooper).apply { experimentalSetLegacyDecodingEnabled(true) })
+            }
+        }
             .setEnableDecoderFallback(decoderMode == DecoderMode.AUTO)
             .setMediaCodecSelector(buildMediaCodecSelector(decoderMode))
 
@@ -477,6 +487,7 @@ class PlayerController(
         subtitleUri: Uri?,
         audioUri: Uri?,
     ) = DefaultMediaSourceFactory(dataSourceFactory)
+        .experimentalParseSubtitlesDuringExtraction(false)
         .createMediaSource(
             MediaItem.Builder()
                 .setUri(videoUri)

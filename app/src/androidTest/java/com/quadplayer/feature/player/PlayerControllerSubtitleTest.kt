@@ -25,6 +25,34 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class PlayerControllerSubtitleTest {
+    @Test fun choosingSubtitleMidPlaybackDisplaysAlreadyActiveCue() = runBlocking(Dispatchers.Main) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val audio = File(context.cacheDir, "subtitle-midplay.wav")
+        val samples = ByteArray(16000 * 2 * 6)
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray()).putInt(36 + samples.size).put("WAVEfmt ".toByteArray())
+            .putInt(16).putShort(1).putShort(1).putInt(16000).putInt(32000)
+            .putShort(2).putShort(16).put("data".toByteArray()).putInt(samples.size)
+        audio.writeBytes(header.array() + samples)
+        val subtitle = File(context.cacheDir, "subtitle-midplay-external.srt").apply { writeText("1\n00:00:00,000 --> 00:00:05,000\nlong subtitle\n") }
+        val video = VideoFile(1, Uri.fromFile(audio).toString(), audio.name, "test", "test", 6000, audio.length(), 0, 0, "audio/wav", 0, false, true, null)
+        val controller = PlayerController(context)
+        val cue = CompletableDeferred<Unit>()
+        controller.player.addListener(object : Player.Listener {
+            override fun onCues(cueGroup: CueGroup) {
+                if (cueGroup.cues.any { it.text?.toString() == "long subtitle" }) cue.complete(Unit)
+            }
+        })
+        try {
+            controller.player.volume = 0f
+            controller.load(video, startPositionMs = 2000, playWhenReady = false)
+            controller.setExternalSubtitle(Uri.fromFile(subtitle))
+            controller.play()
+            withTimeout(10000) { cue.await() }
+            assertTrue(controller.player.currentPosition >= 2000)
+        } finally { controller.release(); audio.delete(); subtitle.delete() }
+    }
+
     @Test fun lateSubtitleProbeCannotUndoExplicitDisable() = runBlocking(Dispatchers.Main) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val videoFile = File(context.cacheDir, "subtitle-race-test.mp4").apply { writeText("video") }
