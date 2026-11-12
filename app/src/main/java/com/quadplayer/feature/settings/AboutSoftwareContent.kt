@@ -1,5 +1,7 @@
 package com.quadplayer.feature.settings
 
+import android.content.Context
+import com.quadplayer.R
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.GridView
@@ -35,83 +37,83 @@ internal data class AboutVisualSection(
     val icon: ImageVector,
 )
 
-internal fun aboutSoftwareContent(): AboutSoftwareContent {
+internal fun aboutSoftwareContent(context: Context): AboutSoftwareContent {
     return AboutSoftwareContent(
-        intro = "QuadPlayer 是一款专为 Android 平台打造的多视频同步播放应用。它的核心能力是同时播放最多 4 个视频，并允许你在不同视频之间自由切换音频源。无论是同时观看多场体育赛事、监控多路摄像头画面，还是对比不同视频素材，QuadPlayer 都能让你在一块屏幕上高效完成。",
+        intro = context.getString(R.string.about_detail_01),
         featureGroups = listOf(
             AboutBulletGroup(
-                title = "四格同步播放（Quad 模式）",
+                title = context.getString(R.string.about_detail_02),
                 items = listOf(
-                    "2×2 等分网格，四个视频画面可同时播放。",
-                    "双击画面或点击音频按钮切换当前音频源，其余画面自动静音。",
-                    "支持音频交叉淡入淡出，切换听感更平滑。",
-                    "支持全部播放/暂停、同步进度、统一调速等全局控制。",
-                    "每个视频可单独拖拽进度、暂停或更换内容。",
-                    "长按画面打开菜单，可选择交换画面位置。",
+                    context.getString(R.string.about_detail_03),
+                    context.getString(R.string.about_detail_04),
+                    context.getString(R.string.about_detail_05),
+                    context.getString(R.string.about_detail_06),
+                    context.getString(R.string.about_detail_07),
+                    context.getString(R.string.about_detail_08),
                 ),
             ),
             AboutBulletGroup(
-                title = "单视频播放",
+                title = context.getString(R.string.about_detail_09),
                 items = listOf(
-                    "支持播放、暂停、进度拖动和缓冲提示。",
-                    "支持 0.5x 到 3.0x 多档变速播放。",
-                    "支持适应、填充、缩放、16:9、4:3、原始等画面比例。",
-                    "支持外挂字幕、多音轨和手势调节音量、亮度。",
-                    "支持断点续播，下次打开可从上次位置继续。",
+                    context.getString(R.string.about_detail_10),
+                    context.getString(R.string.about_detail_11),
+                    context.getString(R.string.about_detail_12),
+                    context.getString(R.string.about_detail_13),
+                    context.getString(R.string.about_detail_14),
                 ),
             ),
             AboutBulletGroup(
-                title = "媒体库管理",
+                title = context.getString(R.string.about_detail_15),
                 items = listOf(
-                    "自动扫描设备中的本地视频文件。",
-                    "按文件夹浏览视频，支持筛选、搜索和排序。",
-                    "支持收藏、最近播放记录和播放列表管理。",
+                    context.getString(R.string.about_detail_16),
+                    context.getString(R.string.about_detail_17),
+                    context.getString(R.string.about_detail_18),
                 ),
             ),
             AboutBulletGroup(
-                title = "个性化设置",
+                title = context.getString(R.string.about_detail_19),
                 items = listOf(
-                    "支持主题模式、解码模式、默认倍速等播放偏好。",
-                    "支持自定义双击快进秒数和双击方向反转。",
-                    "支持后台播放、自动续播和音频切换渐变开关。",
+                    context.getString(R.string.about_detail_20),
+                    context.getString(R.string.about_detail_21),
+                    context.getString(R.string.about_detail_22),
                 ),
             ),
         ),
         requirements = listOf(
-            AboutKeyValue("操作系统", "Android 8.0（API 26）及以上"),
-            AboutKeyValue("推荐内存", "4GB 及以上（四格模式需同时运行 4 个解码器实例）"),
-            AboutKeyValue("存储权限", "需要授予视频文件读取权限"),
+            AboutKeyValue(context.getString(R.string.about_detail_23), context.getString(R.string.about_detail_24)),
+            AboutKeyValue(context.getString(R.string.about_detail_25), context.getString(R.string.about_detail_26)),
+            AboutKeyValue(context.getString(R.string.about_detail_27), context.getString(R.string.about_detail_28)),
         ),
-        requirementHint = "QuadPlayer 内置设备能力检测，会在内存不足或硬件解码器数量不够时给出提示；运行过程中也会持续监控内存与设备温度，在资源紧张时提醒你及时调整。",
+        requirementHint = context.getString(R.string.about_detail_29),
         guideGroups = listOf(
             AboutNumberedGroup(
-                title = "快速开始",
+                title = context.getString(R.string.about_detail_30),
                 steps = listOf(
-                    "首次启动后授予视频文件读取权限，应用会自动扫描本地视频。",
-                    "在首页可查看媒体库、最近播放、收藏和播放列表。",
-                    "点击任意视频即可进入单视频播放界面。",
-                    "通过底部导航进入四格页面，可添加最多 4 个视频开始同步播放。",
+                    context.getString(R.string.about_detail_31),
+                    context.getString(R.string.about_detail_32),
+                    context.getString(R.string.about_detail_33),
+                    context.getString(R.string.about_detail_34),
                 ),
             ),
             AboutNumberedGroup(
-                title = "四格模式操作",
+                title = context.getString(R.string.about_detail_35),
                 steps = listOf(
-                    "点击空白格子添加视频。",
-                    "单击画面显示进度条；双击画面或点击音频按钮切换音频源。",
-                    "使用底部控制栏进行全部播放/暂停、同步进度和统一调速。",
-                    "长按画面打开菜单，可开始交换，再在目标画面的菜单中完成交换。",
-                    "在画面菜单中移除或更换视频。",
+                    context.getString(R.string.about_detail_36),
+                    context.getString(R.string.about_detail_37),
+                    context.getString(R.string.about_detail_38),
+                    context.getString(R.string.about_detail_39),
+                    context.getString(R.string.about_detail_40),
                 ),
             ),
         ),
     )
 }
 
-internal fun aboutVisualSections(): List<AboutVisualSection> {
+internal fun aboutVisualSections(context: Context): List<AboutVisualSection> {
     return listOf(
-        AboutVisualSection(title = "应用简介", icon = Icons.Rounded.Info),
-        AboutVisualSection(title = "核心功能", icon = Icons.Rounded.GridView),
-        AboutVisualSection(title = "系统要求", icon = Icons.Rounded.PhoneAndroid),
-        AboutVisualSection(title = "使用指南", icon = Icons.Rounded.PlayCircle),
+        AboutVisualSection(title = context.getString(R.string.about_detail_41), icon = Icons.Rounded.Info),
+        AboutVisualSection(title = context.getString(R.string.about_detail_42), icon = Icons.Rounded.GridView),
+        AboutVisualSection(title = context.getString(R.string.about_detail_43), icon = Icons.Rounded.PhoneAndroid),
+        AboutVisualSection(title = context.getString(R.string.about_detail_44), icon = Icons.Rounded.PlayCircle),
     )
 }

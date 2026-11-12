@@ -120,7 +120,7 @@ fun FileBrowserScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ScopeChip(
-                label = uiState.selectedFolder?.name ?: stringResource(R.string.folders_all_videos),
+                label = uiState.selectedFolder?.let { if (it.path == "imported") stringResource(R.string.media_imported_folder) else it.name } ?: stringResource(R.string.folders_all_videos),
                 onClick = { showFolderPicker = true },
                 modifier = Modifier.weight(1f),
             )
@@ -325,7 +325,7 @@ private fun FolderPickerSheet(
             ) {
                 items(uiState.folders, key = { it.path }) { folder ->
                     FolderChoiceRow(
-                        title = folder.name,
+                        title = if (folder.path == "imported") stringResource(R.string.media_imported_folder) else folder.name,
                         countLabel = stringResource(R.string.common_video_count, folder.videoCount),
                         selected = uiState.selectedFolder?.path == folder.path,
                         onClick = { onSelectFolder(folder.path) },
@@ -406,7 +406,7 @@ private fun VideoRow(
                 Text(
                     text = stringResource(
                         R.string.common_folder_duration,
-                        video.folderName,
+                        if (video.folderPath == "imported") stringResource(R.string.media_imported_folder) else video.folderName,
                         formatDuration(video.durationMs),
                     ),
                     style = MaterialTheme.typography.bodySmall,

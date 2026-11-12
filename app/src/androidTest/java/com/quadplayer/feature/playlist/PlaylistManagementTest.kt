@@ -25,7 +25,7 @@ class PlaylistManagementTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, QuadPlayerDatabase::class.java).build()
         try {
-            val repository = DefaultPlaylistRepository(db.playlistDao(), db)
+            val repository = DefaultPlaylistRepository(db.playlistDao(), db, context)
             val first = db.videoDao().upsert(VideoEntity(uriString = "content://batch/1", displayName = "one", folderPath = "test", folderName = "test", durationMs = 1, sizeBytes = 1, width = 1, height = 1, mimeType = "video/mp4", dateModified = 0))
             val second = db.videoDao().upsert(VideoEntity(uriString = "content://batch/2", displayName = "two", folderPath = "test", folderName = "test", durationMs = 1, sizeBytes = 1, width = 1, height = 1, mimeType = "video/mp4", dateModified = 0))
             val id = repository.createPlaylistWithVideos("Batch", listOf(first, first, second))
@@ -42,7 +42,7 @@ class PlaylistManagementTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, QuadPlayerDatabase::class.java).build()
         try {
-            val repository = DefaultPlaylistRepository(db.playlistDao(), db)
+            val repository = DefaultPlaylistRepository(db.playlistDao(), db, context)
             val playlist = repository.createPlaylist("Original")
             val ids = (1..2).map { index ->
                 db.videoDao().upsert(VideoEntity(uriString = "content://test/$index", displayName = "video$index",
