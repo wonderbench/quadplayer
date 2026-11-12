@@ -5,8 +5,8 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quadplayer.R
-import com.quadplayer.core.data.HistoryRepository
 import com.quadplayer.core.data.HistoryWriteQueue
+import com.quadplayer.core.data.PlaybackHistorySession
 import com.quadplayer.core.data.SettingsRepository
 import com.quadplayer.core.data.VideoRepository
 import com.quadplayer.core.model.AppSettings
@@ -38,11 +38,11 @@ class PlayerViewModel @Inject constructor(
     @ApplicationContext context: android.content.Context,
     savedStateHandle: SavedStateHandle,
     private val videoRepository: VideoRepository,
-    private val historyRepository: HistoryRepository,
     private val historyWriteQueue: HistoryWriteQueue,
     private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
     private val playerController = PlayerController(context)
+    private val historySession = PlaybackHistorySession(historyWriteQueue)
     private val appContext = context
     private val video = MutableStateFlow<VideoFile?>(null)
     private val controlsVisible = MutableStateFlow(true)
@@ -87,8 +87,9 @@ class PlayerViewModel @Inject constructor(
                 video.value = currentVideo
                 statusMessage.value = null
                 val settings = settingsRepository.settings.first()
-                val resumePosition = if (settings.autoResume) historyRepository.getResumePosition(videoId) else 0L
+                val resumePosition = if (settings.autoResume) historyWriteQueue.getResumePosition(videoId) else 0L
                 playerController.load(currentVideo, resumePosition)
+                historySession.markLoaded(currentVideo.id)
                 startHistorySaver()
             }
         }
@@ -171,8 +172,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun savePosition() {
-        val currentVideo = video.value ?: return
-        historyWriteQueue.enqueue(currentVideo.id, playerController.player.currentPosition)
+        historySession.capture(playerController.player.currentPosition)
     }
 
     override fun onCleared() {
