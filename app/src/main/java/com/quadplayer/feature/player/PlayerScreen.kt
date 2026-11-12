@@ -120,6 +120,15 @@ fun PlayerScreen(
     }
     var floatingActionsOnLeft by rememberSaveable { mutableStateOf(false) }
 
+    DisposableEffect(lifecycleOwner, state.controlsVisible, inPip, viewModel) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) viewModel.controller.setProgressUpdatesEnabled(state.controlsVisible && !inPip)
+            if (event == Lifecycle.Event.ON_STOP) viewModel.controller.setProgressUpdatesEnabled(false)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); viewModel.controller.setProgressUpdatesEnabled(false) }
+    }
+
     val subtitlePicker = rememberLauncherForActivityResult(OpenDocument()) { uri ->
         uri?.let {
             runCatching {

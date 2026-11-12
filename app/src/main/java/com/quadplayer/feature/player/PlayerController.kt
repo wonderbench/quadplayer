@@ -34,10 +34,15 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -93,6 +98,10 @@ class PlayerController(
             updateStateFromPlayer()
         }
 
+        override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+            updateStateFromPlayer(includeTracks = false)
+        }
+
         override fun onPlayerError(error: PlaybackException) {
             _uiState.value = _uiState.value.copy(
                 playbackState = PlaybackState.ERROR,
@@ -106,6 +115,7 @@ class PlayerController(
     var onPlayerRebuilt: ((ExoPlayer) -> Unit)? = null
 
     private var progressJob: Job? = null
+    private val progressUpdatesEnabled = MutableStateFlow(true)
     private var currentVideo: VideoFile? = null
     private var externalSubtitleUri: Uri? = null
     private var externalSubtitleMime: String? = null
@@ -115,9 +125,12 @@ class PlayerController(
     init {
         playerInternal.addListener(playerListener)
         progressJob = scope.launch {
-            while (true) {
-                updateStateFromPlayer(includeTracks = false)
-                delay(300)
+            combine(progressUpdatesEnabled, uiState.map { it.isPlaying }.distinctUntilChanged()) { enabled, playing -> enabled && playing }
+                .distinctUntilChanged().collectLatest { shouldPoll ->
+                    if (shouldPoll) while (true) {
+                        updateStateFromPlayer(includeTracks = false)
+                        delay(300)
+                    }
             }
         }
     }
@@ -215,7 +228,12 @@ class PlayerController(
     }
 
     fun seekBy(deltaMs: Long) {
-        seekTo(_uiState.value.currentPositionMs + deltaMs)
+        seekTo(player.currentPosition + deltaMs)
+    }
+
+    fun setProgressUpdatesEnabled(enabled: Boolean) {
+        progressUpdatesEnabled.value = enabled
+        if (enabled) updateStateFromPlayer(includeTracks = false)
     }
 
     fun setPlaybackSpeed(speed: PlaybackSpeed) {
@@ -261,6 +279,7 @@ class PlayerController(
 
     fun release() {
         progressJob?.cancel()
+        scope.cancel()
         player.removeListener(playerListener)
         player.release()
     }
@@ -293,7 +312,7 @@ class PlayerController(
     private suspend fun rebuildPlayer(decoderMode: DecoderMode) {
         withContext(Dispatchers.Main.immediate) {
             val oldPlayer = playerInternal
-            val previousPosition = _uiState.value.currentPositionMs
+            val previousPosition = oldPlayer.currentPosition
             val previousVolume = oldPlayer.volume
             val previousRepeatMode = oldPlayer.repeatMode
             val previousPlayWhenReady = oldPlayer.playWhenReady

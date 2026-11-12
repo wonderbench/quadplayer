@@ -93,6 +93,15 @@ fun QuadPlayerScreen(
     var progressVisibleSlot by remember { mutableIntStateOf(-1) }
     var progressInteractionVersion by remember { mutableIntStateOf(0) }
 
+    DisposableEffect(lifecycleOwner, progressVisibleSlot) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) viewModel.setProgressVisibleSlot(progressVisibleSlot)
+            if (event == Lifecycle.Event.ON_STOP) viewModel.setProgressVisibleSlot(-1)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); viewModel.setProgressVisibleSlot(-1) }
+    }
+
     val hasPlayingVideo = state.slots.any { it.isPlaying }
 
     LaunchedEffect(
