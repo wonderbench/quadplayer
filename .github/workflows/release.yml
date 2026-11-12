@@ -1,0 +1,68 @@
+name: Signed release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Ensure Android 16 SDK is installed
+        run: |
+          if [ ! -f "$ANDROID_HOME/platforms/android-36/android.jar" ]; then
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
+          fi
+      - name: Validate tag and credentials
+        env:
+          TAG: ${{ github.ref_name }}
+          KEYSTORE_BASE64: ${{ secrets.QP_RELEASE_KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.QP_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.QP_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.QP_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo 'Release tags must use vMAJOR.MINOR.PATCH.' >&2; exit 1
+          fi
+          major=${BASH_REMATCH[1]}; minor=${BASH_REMATCH[2]}; patch=${BASH_REMATCH[3]}
+          if (( ${#major} > 4 || ${#minor} > 3 || ${#patch} > 3 )); then
+            echo 'Version components are too large.' >&2; exit 1
+          fi
+          code=$((major * 1000000 + minor * 1000 + patch))
+          if (( code < 1 || code > 2100000000 )); then
+            echo 'Version code must be in the range 1 to 2100000000.' >&2; exit 1
+          fi
+          for value in "$KEYSTORE_BASE64" "$STORE_PASSWORD" "$KEY_ALIAS" "$KEY_PASSWORD"; do
+            if [[ -z "$value" ]]; then echo 'A release signing secret is missing.' >&2; exit 1; fi
+          done
+          printf 'QP_VERSION_CODE=%s\nQP_VERSION_NAME=%s\n' "$code" "${TAG#v}" >> "$GITHUB_ENV"
+      - name: Test, build and verify the signed APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.QP_RELEASE_KEYSTORE_BASE64 }}
+          QP_RELEASE_STORE_PASSWORD: ${{ secrets.QP_RELEASE_STORE_PASSWORD }}
+          QP_RELEASE_KEY_ALIAS: ${{ secrets.QP_RELEASE_KEY_ALIAS }}
+          QP_RELEASE_KEY_PASSWORD: ${{ secrets.QP_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          export QP_RELEASE_STORE_FILE="$RUNNER_TEMP/quadplayer-release.jks"
+          trap 'rm -f "$QP_RELEASE_STORE_FILE"' EXIT
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$QP_RELEASE_STORE_FILE"
+          chmod 600 "$QP_RELEASE_STORE_FILE"
+          bash ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleRelease --no-daemon
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" app/build/outputs/apk/release/app-release.apk --verify-tag --generate-notes
