@@ -476,6 +476,20 @@ private fun QuadSlotContent(
                         playerView.setBackgroundColor(android.graphics.Color.BLACK)
                     },
                 )
+                if (slot.errorMessage != null) {
+                    Surface(
+                        modifier = Modifier.align(Alignment.Center),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(stringResource(R.string.player_error_failed))
+                            Row {
+                                TextButton(onClick = { viewModel.retrySlot(slot.index) }) { Text(stringResource(R.string.player_retry)) }
+                                TextButton(onClick = { onAddVideo(slot.index) }) { Text(stringResource(R.string.quad_replace_video)) }
+                            }
+                        }
+                    }
+                }
                 if (slot.isAudioSource) {
                     Surface(
                         modifier = Modifier

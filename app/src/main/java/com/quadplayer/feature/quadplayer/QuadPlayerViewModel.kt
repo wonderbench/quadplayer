@@ -143,6 +143,8 @@ class QuadPlayerViewModel @Inject constructor(
         engine.syncToPosition(sourceState.positionMs)
     }
 
+    fun retrySlot(slotIndex: Int) = engine.controllerAt(slotIndex).retry()
+
     fun seekSlot(slotIndex: Int, positionMs: Long) {
         engine.seekSlot(slotIndex, positionMs)
     }

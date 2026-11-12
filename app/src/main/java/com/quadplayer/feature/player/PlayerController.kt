@@ -86,7 +86,7 @@ class PlayerController(
         override fun onPlayerError(error: PlaybackException) {
             _uiState.value = _uiState.value.copy(
                 playbackState = PlaybackState.ERROR,
-                errorMessage = error.message,
+                errorMessage = error.message ?: error.errorCodeName,
             )
         }
     }
@@ -119,6 +119,11 @@ class PlayerController(
     }
 
     suspend fun load(video: VideoFile, startPositionMs: Long = 0L) {
+        if (currentVideo?.uriString != video.uriString) {
+            externalSubtitleUri = null
+            externalAudioUri = null
+        }
+        _uiState.value = _uiState.value.copy(errorMessage = null)
         currentVideo = video
         if (externalSubtitleUri == null) {
             externalSubtitleUri = autoDetectSubtitle(video)
@@ -152,7 +157,15 @@ class PlayerController(
         externalAudioUri = null
         player.stop()
         player.clearMediaItems()
+        _uiState.value = _uiState.value.copy(errorMessage = null)
         updateStateFromPlayer()
+    }
+
+    fun retry() {
+        if (currentVideo == null) return
+        _uiState.value = _uiState.value.copy(errorMessage = null)
+        player.prepare()
+        player.play()
     }
 
     fun play() = player.play()
@@ -316,7 +329,7 @@ class PlayerController(
         val player = playerInternal
         val tracks = player.currentTracks.groups
         _uiState.value = _uiState.value.copy(
-            playbackState = when (player.playbackState) {
+            playbackState = if (_uiState.value.errorMessage != null) PlaybackState.ERROR else when (player.playbackState) {
                 Player.STATE_IDLE -> PlaybackState.IDLE
                 Player.STATE_BUFFERING -> PlaybackState.BUFFERING
                 Player.STATE_READY -> if (player.isPlaying) PlaybackState.PLAYING else PlaybackState.READY
@@ -332,7 +345,6 @@ class PlayerController(
             availableSubtitleTracks = buildTrackOptions(tracks, C.TRACK_TYPE_TEXT),
             selectedExternalSubtitle = externalSubtitleUri?.lastPathSegment,
             selectedExternalAudio = externalAudioUri?.lastPathSegment,
-            errorMessage = null,
         )
     }
 
