@@ -31,6 +31,8 @@ data class QuadSlotUiState(
     val playWhenReady: Boolean = false,
     val playbackEnded: Boolean = false,
     val repeatOne: Boolean = false,
+    val loopStartMs: Long? = null,
+    val loopEndMs: Long? = null,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -61,6 +63,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
                         playWhenReady = state.playWhenReady,
                         playbackEnded = state.playbackState == PlaybackState.ENDED,
                         repeatOne = state.repeatOne,
+                        loopStartMs = state.loopStartMs, loopEndMs = state.loopEndMs,
                     )
                 }
             }
@@ -193,9 +196,14 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     }
 
     fun setSlotRepeat(slotIndex: Int, enabled: Boolean) {
-        slots[slotIndex].value.controller?.player?.repeatMode =
-            if (enabled) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
+        val controller = slots[slotIndex].value.controller ?: return
+        if (enabled) controller.clearLoop()
+        controller.player.repeatMode = if (enabled) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
     }
+
+    fun setLoopStart(slotIndex: Int): Boolean = slots[slotIndex].value.controller?.setLoopStart() ?: false
+    fun setLoopEnd(slotIndex: Int): Boolean = slots[slotIndex].value.controller?.setLoopEnd() ?: false
+    fun clearLoop(slotIndex: Int) { slots[slotIndex].value.controller?.clearLoop() }
 
     fun syncToPosition(positionMs: Long) {
         slots.forEach { slot ->

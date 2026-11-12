@@ -270,6 +270,10 @@ class QuadPlayerViewModel @Inject constructor(
         engine.setSlotRepeat(slotIndex, enabled)
     }
 
+    fun setLoopStart(slotIndex: Int): Boolean = engine.setLoopStart(slotIndex)
+    fun setLoopEnd(slotIndex: Int): Boolean = engine.setLoopEnd(slotIndex)
+    fun clearLoop(slotIndex: Int) = engine.clearLoop(slotIndex)
+
     fun toggleSlot(slotIndex: Int) {
         val player = engine.controllerAt(slotIndex)?.player ?: return
         if ((!player.playWhenReady || player.playbackState == androidx.media3.common.Player.STATE_ENDED) &&

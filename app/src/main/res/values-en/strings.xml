@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="quad_repeat_video">Repeat this video</string>
+    <string name="quad_loop_range">Loop range A: %1$s  B: %2$s</string>
+    <string name="quad_loop_set_a">Set A</string>
+    <string name="quad_loop_set_b">Set B</string>
+    <string name="quad_loop_clear">Clear</string>
+    <string name="quad_loop_invalid">Wait until seeking is available and choose B at least 0.25 seconds after A.</string>
     <string name="app_name">QuadPlayer</string>
     <string name="nav_home">Home</string>
     <string name="nav_folders">Folders</string>
