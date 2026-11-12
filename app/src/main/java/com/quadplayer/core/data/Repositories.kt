@@ -20,6 +20,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -51,7 +53,7 @@ interface PlaylistRepository {
     suspend fun deletePlaylist(playlistId: Long)
     suspend fun addVideo(playlistId: Long, videoId: Long)
     suspend fun removeVideo(playlistId: Long, videoId: Long)
-    suspend fun moveVideo(playlistId: Long, fromIndex: Int, toIndex: Int)
+    suspend fun swapVideos(playlistId: Long, firstVideoId: Long, secondVideoId: Long)
 }
 
 @Singleton
@@ -60,6 +62,7 @@ class DefaultVideoRepository @Inject constructor(
     private val scanner: MediaStoreVideoScanner,
     private val database: QuadPlayerDatabase,
 ) : VideoRepository {
+    private val refreshMutex = Mutex()
     override val videos: Flow<List<VideoFile>> = videoDao.observeAll().map { rows -> rows.map { it.toModel() } }
     override val favorites: Flow<List<VideoFile>> = videoDao.observeFavorites().map { rows -> rows.map { it.toModel() } }
     override val folders: Flow<List<FolderInfo>> = videoDao.observeFolders()
@@ -72,21 +75,29 @@ class DefaultVideoRepository @Inject constructor(
         return videoDao.search(query).map { rows -> rows.map { it.toModel() } }
     }
 
-    override suspend fun refreshVideos() {
+    override suspend fun refreshVideos() = refreshMutex.withLock {
         withContext(Dispatchers.IO) {
-        val scanned = try {
-            scanner.scanVideos()
-        } catch (cancelled: CancellationException) {
-            throw cancelled
-        } catch (failure: Exception) {
-            Log.w("VideoRepository", "MediaStore scan failed; retaining cached videos", failure)
-            return@withContext
-        }
-        database.withTransaction {
-            videoDao.upsertAll(scanned)
-            val uris = scanned.map { it.uriString }
-            if (uris.isEmpty()) videoDao.clearScannedEntries() else videoDao.removeStaleScannedEntries(uris)
-        }
+            val scanned = try {
+                scanner.scanVideos()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                Log.w("VideoRepository", "MediaStore scan failed; retaining cached videos", failure)
+                return@withContext
+            }
+            database.withTransaction {
+                videoDao.markScannedUnavailable()
+                scanned.forEach { fresh ->
+                    val existing = videoDao.getByUriString(fresh.uriString)
+                    val updated = if (existing == null) fresh else fresh.copy(
+                        id = existing.id,
+                        isFavorite = existing.isFavorite,
+                        isManuallyAdded = existing.isManuallyAdded,
+                        isAccessible = true,
+                    )
+                    videoDao.upsert(updated)
+                }
+            }
         }
     }
 
@@ -137,6 +148,7 @@ class DefaultHistoryRepository @Inject constructor(
 @Singleton
 class DefaultPlaylistRepository @Inject constructor(
     private val playlistDao: PlaylistDao,
+    private val database: QuadPlayerDatabase,
 ) : PlaylistRepository {
     override val playlists: Flow<List<PlaylistSummary>> = playlistDao.observePlaylists().map { rows ->
         rows.map { it.toModel() }
@@ -182,14 +194,17 @@ class DefaultPlaylistRepository @Inject constructor(
         touchPlaylist(playlistId)
     }
 
-    override suspend fun moveVideo(playlistId: Long, fromIndex: Int, toIndex: Int) = withContext(Dispatchers.IO) {
-        val entries = playlistDao.getPlaylistEntries(playlistId).toMutableList()
-        if (fromIndex !in entries.indices || toIndex !in entries.indices) return@withContext
-        val moved = entries.removeAt(fromIndex)
-        entries.add(toIndex, moved)
-        playlistDao.clearPlaylistEntries(playlistId)
-        playlistDao.upsertEntries(entries.mapIndexed { index, entry -> entry.copy(sortOrder = index) })
-        touchPlaylist(playlistId)
+    override suspend fun swapVideos(playlistId: Long, firstVideoId: Long, secondVideoId: Long) = withContext(Dispatchers.IO) {
+        if (firstVideoId == secondVideoId) return@withContext
+        database.withTransaction {
+            val visible = playlistDao.getVisibleVideoIds(playlistId).toSet()
+            if (firstVideoId !in visible || secondVideoId !in visible) return@withTransaction
+            val entries = playlistDao.getPlaylistEntries(playlistId)
+            val first = entries.firstOrNull { it.videoId == firstVideoId } ?: return@withTransaction
+            val second = entries.firstOrNull { it.videoId == secondVideoId } ?: return@withTransaction
+            playlistDao.upsertEntries(listOf(first.copy(sortOrder = second.sortOrder), second.copy(sortOrder = first.sortOrder)))
+            touchPlaylist(playlistId)
+        }
     }
 
     private suspend fun reindexPlaylist(playlistId: Long) {

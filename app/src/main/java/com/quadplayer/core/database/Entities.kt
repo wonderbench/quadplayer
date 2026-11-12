@@ -29,6 +29,7 @@ data class VideoEntity(
     @ColumnInfo(name = "is_favorite") val isFavorite: Boolean = false,
     @ColumnInfo(name = "is_manually_added") val isManuallyAdded: Boolean = false,
     @ColumnInfo(name = "local_path") val localPath: String? = null,
+    @ColumnInfo(name = "is_accessible", defaultValue = "1") val isAccessible: Boolean = true,
 )
 
 @Entity(
