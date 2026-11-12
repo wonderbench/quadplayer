@@ -530,6 +530,7 @@ private fun QuadSlotContent(
                     },
                     update = { playerView ->
                         playerView.player = viewModel.controllerAt(slot.index)?.player
+                        playerView.keepScreenOn = slot.isPlaying
                         playerView.setShutterBackgroundColor(android.graphics.Color.BLACK)
                         playerView.setBackgroundColor(android.graphics.Color.BLACK)
                     },
