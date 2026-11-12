@@ -111,6 +111,8 @@ class PlayerController(
     private var externalSubtitleMime: String? = null
     private var subtitleSelectionExplicit = false
     private var externalAudioUri: Uri? = null
+    private var released = false
+    private var loadGeneration = 0L
 
     init {
         playerInternal.addListener(playerListener)
@@ -131,7 +133,9 @@ class PlayerController(
         setPlaybackSpeed(settings.defaultPlaybackSpeed)
     }
 
-    suspend fun load(video: VideoFile, startPositionMs: Long = 0L, playWhenReady: Boolean = true) {
+    suspend fun load(video: VideoFile, startPositionMs: Long = 0L, playWhenReady: Boolean = true): Boolean {
+        if (released) return false
+        val request = ++loadGeneration
         val isNewVideo = currentVideo?.uriString != video.uriString
         if (isNewVideo) {
             externalSubtitleUri = null
@@ -143,18 +147,20 @@ class PlayerController(
         currentVideo = video
         if (isNewVideo) {
             val matchingFile = withContext(Dispatchers.IO) { findLocalSubtitle(video.localPath) }
-            if (currentVideo?.uriString != video.uriString) return
+            if (released || request != loadGeneration) return false
             if (!subtitleSelectionExplicit && matchingFile != null) {
                 externalSubtitleUri = Uri.fromFile(matchingFile)
                 externalSubtitleMime = subtitleMimeType(matchingFile.name, null)
             }
         }
-        withContext(Dispatchers.Main.immediate) {
+        return withContext(Dispatchers.Main.immediate) {
+            if (released || request != loadGeneration) return@withContext false
             val source = buildMediaSource(video.uri, externalSubtitleUri, externalAudioUri)
             player.setMediaSource(source)
             player.prepare()
             player.seekTo(startPositionMs)
             player.playWhenReady = playWhenReady
+            true
         }
     }
 
@@ -170,7 +176,7 @@ class PlayerController(
             }.getOrNull()
             subtitleMimeType(name ?: selected.lastPathSegment, runCatching { resolver.getType(selected) }.getOrNull())
         } }
-        if (currentVideo?.uriString != videoBeforeQuery) return
+        if (released || currentVideo?.uriString != videoBeforeQuery) return
         subtitleSelectionExplicit = true
         externalSubtitleUri = uri
         externalSubtitleMime = mime
@@ -187,6 +193,7 @@ class PlayerController(
     }
 
     fun clear() {
+        loadGeneration++
         currentVideo = null
         externalSubtitleUri = null
         externalSubtitleMime = null
@@ -260,6 +267,9 @@ class PlayerController(
     }
 
     fun release() {
+        if (released) return
+        released = true
+        loadGeneration++
         progressJob?.cancel()
         player.removeListener(playerListener)
         player.release()
