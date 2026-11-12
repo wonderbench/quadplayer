@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quadplayer.core.ui.rememberMediaAccess
+import com.quadplayer.core.ui.VideoThumbnail
 import com.quadplayer.R
 import com.quadplayer.core.model.PlaylistSummary
 import com.quadplayer.core.model.RecentPlayback
@@ -231,16 +232,17 @@ private fun VideoList(
                         .padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(video.displayName, maxLines = 2, style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        text = stringResource(
-                            R.string.common_folder_duration,
-                            video.folderName,
-                            formatDuration(video.durationMs),
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        VideoThumbnail(video)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(video.displayName, maxLines = 2, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                text = stringResource(R.string.common_folder_duration, video.folderName, formatDuration(video.durationMs)),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RoundIconButton(onClick = { onOpenVideo(video.id) }) {
                             Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.common_play))
@@ -279,18 +281,22 @@ private fun RecentList(
     LazyColumn(contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         items(items, key = { it.video.id }) { item ->
             DepthCard(onClick = { onOpenVideo(item.video.id) }) {
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
+                    VideoThumbnail(item.video)
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(item.video.displayName)
                     Text(
                         text = stringResource(R.string.home_resume_from, formatDuration(item.lastPositionMs)),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    }
                 }
             }
         }

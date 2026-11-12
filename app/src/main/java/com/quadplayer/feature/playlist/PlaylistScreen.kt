@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quadplayer.R
 import com.quadplayer.core.util.formatDuration
+import com.quadplayer.core.ui.VideoThumbnail
 
 @Composable
 fun PlaylistScreen(
@@ -81,6 +82,7 @@ fun PlaylistScreen(
                                 .padding(12.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                         ) {
+                            VideoThumbnail(video, modifier = Modifier.padding(end = 8.dp), width = 56.dp, height = 48.dp)
                             Column(
                                 modifier = Modifier.weight(1f),
                                 verticalArrangement = Arrangement.spacedBy(4.dp),
