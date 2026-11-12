@@ -21,3 +21,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - name: Build, test and lint
         run: bash ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --no-daemon
+      - name: Print Lint report after a failure
+        if: failure()
+        run: |
+          if [ -f app/build/reports/lint-results-debug.txt ]; then
+            cat app/build/reports/lint-results-debug.txt
+          fi
