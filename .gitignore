@@ -20,3 +20,5 @@ hs_err_pid*.log
 replay_pid*.log
 /tmp_media3/
 /tmp_media3_exoplayer.aar
+*.jks
+*.keystore
