@@ -40,10 +40,10 @@ import androidx.compose.material.icons.rounded.ScreenRotationAlt
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
+import com.quadplayer.ui.theme.DepthChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import com.quadplayer.ui.theme.RoundIconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -133,6 +133,7 @@ fun PlayerScreen(
 
     DisposableEffect(lifecycleOwner, state.settings.backgroundPlayback) {
         val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) viewModel.onScreenStarted()
             if (event == Lifecycle.Event.ON_STOP) {
                 viewModel.onBackgroundStateChanged(
                     allowBackgroundPlayback = state.settings.backgroundPlayback,
@@ -276,13 +277,13 @@ fun PlayerScreen(
                 if (isLandscapeMode) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            IconButton(onClick = viewModel::previous, enabled = state.queue.hasPrevious) {
+                            RoundIconButton(onClick = viewModel::previous, enabled = state.queue.hasPrevious) {
                                 Icon(Icons.Rounded.SkipPrevious, contentDescription = stringResource(R.string.player_previous))
                             }
                             TextButton(onClick = viewModel::togglePlayPause) {
                                 Text(stringResource(if (state.playerState.isPlaying) R.string.common_pause else R.string.common_play))
                             }
-                            IconButton(onClick = viewModel::next, enabled = state.queue.hasNext) {
+                            RoundIconButton(onClick = viewModel::next, enabled = state.queue.hasNext) {
                                 Icon(Icons.Rounded.SkipNext, contentDescription = stringResource(R.string.player_next))
                             }
                             Text(formatDuration(if (isSeeking) seekPosition.toLong() else state.playerState.currentPositionMs))
@@ -366,7 +367,7 @@ fun PlayerScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        IconButton(onClick = viewModel::previous, enabled = state.queue.hasPrevious) {
+                        RoundIconButton(onClick = viewModel::previous, enabled = state.queue.hasPrevious) {
                             Icon(Icons.Rounded.SkipPrevious, contentDescription = stringResource(R.string.player_previous))
                         }
                         TextButton(onClick = viewModel::togglePlayPause) {
@@ -378,14 +379,14 @@ fun PlayerScreen(
                                 },
                             )
                         }
-                        IconButton(onClick = viewModel::next, enabled = state.queue.hasNext) {
+                        RoundIconButton(onClick = viewModel::next, enabled = state.queue.hasNext) {
                             Icon(Icons.Rounded.SkipNext, contentDescription = stringResource(R.string.player_next))
                         }
                         TextButton(onClick = viewModel::toggleRepeatOne) {
                             Text(stringResource(if (state.queue.repeatOne) R.string.player_repeat_one_on else R.string.player_repeat_one_off))
                         }
                         PlaybackSpeed.entries.forEach { speed ->
-                            AssistChip(
+                            DepthChip(
                                 onClick = { viewModel.setSpeed(speed) },
                                 label = { Text(speed.label) },
                             )
@@ -508,24 +509,9 @@ private fun FloatingPlayerActionButton(
     icon: ImageVector,
     contentDescription: String,
     onClick: () -> Unit,
-    size: Dp = 52.dp,
 ) {
-    Surface(
-        modifier = Modifier
-            .size(size)
-            .clickable(onClick = onClick),
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f),
-        tonalElevation = 6.dp,
-        shadowElevation = 8.dp,
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = MaterialTheme.colorScheme.onSurface,
-            )
-        }
+    RoundIconButton(onClick = onClick) {
+        Icon(imageVector = icon, contentDescription = contentDescription)
     }
 }
 
