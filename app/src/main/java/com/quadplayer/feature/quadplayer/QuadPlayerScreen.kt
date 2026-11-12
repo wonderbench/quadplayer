@@ -4,6 +4,7 @@ package com.quadplayer.feature.quadplayer
 
 import android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
 import android.content.pm.ActivityInfo
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
 import androidx.compose.foundation.background
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -47,12 +49,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.quadplayer.R
 import com.quadplayer.core.model.PlaybackSpeed
+import com.quadplayer.core.model.LayoutMode
 import com.quadplayer.core.ui.ImmersiveFullscreen
 import com.quadplayer.core.ui.LockScreenOrientation
 import kotlinx.coroutines.delay
@@ -67,6 +71,7 @@ fun QuadPlayerScreen(
 
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    BackHandler(enabled = state.layoutMode != LayoutMode.EQUAL_GRID) { viewModel.resetLayout() }
     var pendingSlot by remember { mutableIntStateOf(-1) }
     var menuSlot by remember { mutableStateOf<Int?>(null) }
     var controlsVisible by remember { mutableStateOf(false) }
@@ -163,6 +168,15 @@ fun QuadPlayerScreen(
             },
         )
 
+        if (state.layoutMode != LayoutMode.EQUAL_GRID) {
+            Surface(
+                modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = if (controlsVisible) 76.dp else 8.dp),
+                tonalElevation = 6.dp,
+            ) {
+                TextButton(onClick = viewModel::resetLayout) { Text(stringResource(R.string.quad_restore_grid)) }
+            }
+        }
+
         if (controlsVisible) {
             BottomOverlay(
                 modifier = Modifier
@@ -192,6 +206,8 @@ fun QuadPlayerScreen(
                 }
                 menuSlot = null
             },
+            onFocus = { viewModel.focusSlot(slotIndex); menuSlot = null },
+            onEnlarge = { viewModel.focusSlot(slotIndex, single = true); menuSlot = null },
             onTogglePlayback = { viewModel.toggleSlot(slotIndex); menuSlot = null },
             onSetSpeed = { speed -> viewModel.setSlotSpeed(slotIndex, speed); menuSlot = null },
             onSwitchAudio = { viewModel.toggleAudioSource(slotIndex); menuSlot = null },
@@ -381,20 +397,30 @@ private fun QuadGrid(
     onSeek: (Int, Long) -> Unit,
     visibleProgressSlot: Int,
 ) {
-    Column(
-        modifier = modifier,
-    ) {
-        Row(
-            modifier = Modifier.weight(1f),
-        ) {
-            QuadSlotContent(Modifier.weight(1f), state.slots[0], viewModel, onAddVideo, onOpenMenu, onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == 0)
-            QuadSlotContent(Modifier.weight(1f), state.slots[1], viewModel, onAddVideo, onOpenMenu, onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == 1)
+    @Composable
+    fun Slot(index: Int, slotModifier: Modifier, audioTopInset: Dp = 4.dp) {
+        QuadSlotContent(slotModifier, state.slots[index], viewModel, onAddVideo, onOpenMenu,
+            onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == index, audioTopInset)
+    }
+    when (state.layoutMode) {
+        LayoutMode.EQUAL_GRID -> Column(modifier = modifier) {
+            Row(Modifier.weight(1f)) {
+                Slot(0, Modifier.weight(1f)); Slot(1, Modifier.weight(1f))
+            }
+            Row(Modifier.weight(1f)) {
+                Slot(2, Modifier.weight(1f)); Slot(3, Modifier.weight(1f))
+            }
         }
-        Row(
-            modifier = Modifier.weight(1f),
-        ) {
-            QuadSlotContent(Modifier.weight(1f), state.slots[2], viewModel, onAddVideo, onOpenMenu, onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == 2)
-            QuadSlotContent(Modifier.weight(1f), state.slots[3], viewModel, onAddVideo, onOpenMenu, onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == 3)
+        LayoutMode.FOCUS_GRID -> Row(modifier = modifier) {
+            Slot(state.focusedSlot, Modifier.weight(3f).fillMaxHeight())
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                (0..3).filter { it != state.focusedSlot }.forEach { index ->
+                    Slot(index, Modifier.weight(1f).fillMaxWidth())
+                }
+            }
+        }
+        LayoutMode.SINGLE -> Box(modifier = modifier) {
+            Slot(state.focusedSlot, Modifier.fillMaxSize(), audioTopInset = 60.dp)
         }
     }
 }
@@ -410,6 +436,7 @@ private fun QuadSlotContent(
     onShowProgress: (Int) -> Unit,
     onSeek: (Int, Long) -> Unit,
     progressVisible: Boolean,
+    audioTopInset: Dp,
 ) {
     var isSeeking by remember(slot.index) { mutableStateOf(false) }
     var sliderPosition by remember(slot.index) {
@@ -495,7 +522,7 @@ private fun QuadSlotContent(
                     }
                 }
                 Surface(
-                    modifier = Modifier.align(Alignment.TopEnd).padding(4.dp),
+                    modifier = Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = audioTopInset),
                     color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
                     shape = MaterialTheme.shapes.small,
                 ) {
@@ -550,6 +577,8 @@ private fun SlotMenuDialog(
     onRemove: () -> Unit,
     onSwap: () -> Unit,
     onReplace: () -> Unit,
+    onFocus: () -> Unit,
+    onEnlarge: () -> Unit,
     onTogglePlayback: () -> Unit,
     onSetSpeed: (PlaybackSpeed) -> Unit,
     onSwitchAudio: () -> Unit,
@@ -568,6 +597,8 @@ private fun SlotMenuDialog(
                 item {
                     Text(stringResource(R.string.quad_slot_label, slot.index + 1))
                 }
+                item { TextButton(onClick = onFocus) { Text(stringResource(R.string.quad_focus_layout)) } }
+                item { TextButton(onClick = onEnlarge) { Text(stringResource(R.string.quad_enlarge)) } }
                 item {
                     TextButton(onClick = onTogglePlayback) {
                         Text(stringResource(if (slot.isPlaying) R.string.common_pause else R.string.common_play))

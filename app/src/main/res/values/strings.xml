@@ -121,6 +121,9 @@
     <string name="quad_sync_to_audio">同步到当前音源</string>
     <string name="quad_mute_all">全部静音</string>
     <string name="quad_speed_title">倍速</string>
+    <string name="quad_focus_layout">聚焦此画面（1+3）</string>
+    <string name="quad_enlarge">放大此画面</string>
+    <string name="quad_restore_grid">返回四格</string>
     <string name="quad_select_audio">切换到此视频的声音</string>
     <string name="quad_current_audio">当前音源</string>
     <string name="quad_tap_to_add">点击选择本地视频</string>

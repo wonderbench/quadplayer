@@ -5,11 +5,16 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class QuadLayoutManager {
-    private val _layoutMode = MutableStateFlow(LayoutMode.EQUAL_GRID)
-    val layoutMode: StateFlow<LayoutMode> = _layoutMode.asStateFlow()
+data class QuadLayoutState(val mode: LayoutMode = LayoutMode.EQUAL_GRID, val focusedSlot: Int = 0)
 
-    fun reset() {
-        _layoutMode.value = LayoutMode.EQUAL_GRID
+class QuadLayoutManager {
+    private val _state = MutableStateFlow(QuadLayoutState())
+    val state: StateFlow<QuadLayoutState> = _state.asStateFlow()
+
+    fun focus(slot: Int, single: Boolean = false) {
+        if (slot !in 0..3) return
+        _state.value = QuadLayoutState(if (single) LayoutMode.SINGLE else LayoutMode.FOCUS_GRID, slot)
     }
+
+    fun reset() { _state.value = QuadLayoutState() }
 }
