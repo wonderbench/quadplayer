@@ -286,7 +286,7 @@ private fun VideoList(
 }
 
 @Composable
-private fun RecentList(
+internal fun RecentList(
     items: List<RecentPlayback>,
     emptyText: String,
     onOpenVideo: (Long) -> Unit,
@@ -294,16 +294,14 @@ private fun RecentList(
     onClear: () -> Unit,
 ) {
     var confirmingClear by remember { mutableStateOf(false) }
-    if (items.isEmpty()) {
-        EmptyStateText(emptyText)
-        return
-    }
-
     LazyVerticalGrid(columns = GridCells.Adaptive(320.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = { confirmingClear = true }) { Text(stringResource(R.string.history_clear)) }
             }
+        }
+        if (items.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) { EmptyStateText(emptyText) }
         }
         gridItems(items, key = { it.video.id }) { item ->
             DepthCard(onClick = { onOpenVideo(item.video.id) }) {
