@@ -107,6 +107,7 @@ class PlayerController(
     private var currentVideo: VideoFile? = null
     private var externalSubtitleUri: Uri? = null
     private var externalSubtitleMime: String? = null
+    private var subtitleSelectionExplicit = false
     private var externalAudioUri: Uri? = null
 
     init {
@@ -129,13 +130,23 @@ class PlayerController(
     }
 
     suspend fun load(video: VideoFile, startPositionMs: Long = 0L, playWhenReady: Boolean = true) {
-        if (currentVideo?.uriString != video.uriString) {
+        val isNewVideo = currentVideo?.uriString != video.uriString
+        if (isNewVideo) {
             externalSubtitleUri = null
             externalSubtitleMime = null
+            subtitleSelectionExplicit = false
             externalAudioUri = null
         }
         _uiState.value = _uiState.value.copy(errorMessage = null)
         currentVideo = video
+        if (isNewVideo) {
+            val matchingFile = withContext(Dispatchers.IO) { findLocalSubtitle(video.localPath) }
+            if (currentVideo?.uriString != video.uriString) return
+            if (!subtitleSelectionExplicit && matchingFile != null) {
+                externalSubtitleUri = Uri.fromFile(matchingFile)
+                externalSubtitleMime = subtitleMimeType(matchingFile.name, null)
+            }
+        }
         withContext(Dispatchers.Main.immediate) {
             val source = buildMediaSource(video.uri, externalSubtitleUri, externalAudioUri)
             player.setMediaSource(source)
@@ -158,6 +169,7 @@ class PlayerController(
             subtitleMimeType(name ?: selected.lastPathSegment, runCatching { resolver.getType(selected) }.getOrNull())
         } }
         if (currentVideo?.uriString != videoBeforeQuery) return
+        subtitleSelectionExplicit = true
         externalSubtitleUri = uri
         externalSubtitleMime = mime
         reloadCurrent()
@@ -176,6 +188,7 @@ class PlayerController(
         currentVideo = null
         externalSubtitleUri = null
         externalSubtitleMime = null
+        subtitleSelectionExplicit = false
         externalAudioUri = null
         player.pause()
         player.stop()

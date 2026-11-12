@@ -4,6 +4,14 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class WarningTransitionsTest {
+    @Test fun simultaneousWarningsAreBothQueuedUntilDismissed() {
+        val events = WarningTransitions().update(lowMemory = true, thermalThrottle = true)
+        val queue = events.fold(emptyList<PerformanceWarning>(), ::enqueueWarning)
+        assertEquals(listOf(PerformanceWarning.LowMemory, PerformanceWarning.ThermalThrottle), queue)
+        assertEquals(PerformanceWarning.LowMemory, queue.first())
+        assertEquals(PerformanceWarning.ThermalThrottle, queue.drop(1).first())
+        assertEquals(queue, enqueueWarning(queue, PerformanceWarning.LowMemory))
+    }
     @Test fun warnsOnceUntilEachConditionClears() {
         val transitions = WarningTransitions()
         assertEquals(emptyList<PerformanceWarning>(), transitions.update(false, false))

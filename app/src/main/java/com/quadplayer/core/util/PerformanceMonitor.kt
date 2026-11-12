@@ -33,6 +33,9 @@ internal class WarningTransitions {
     }
 }
 
+internal fun enqueueWarning(queue: List<PerformanceWarning>, warning: PerformanceWarning): List<PerformanceWarning> =
+    if (warning in queue) queue else queue + warning
+
 @Singleton
 class PerformanceMonitor @Inject constructor() {
     private val warningEvents = Channel<PerformanceWarning>(Channel.BUFFERED)
