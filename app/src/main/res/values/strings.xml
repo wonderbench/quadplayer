@@ -112,6 +112,7 @@
     <string name="player_next">下一条</string>
     <string name="player_repeat_one_on">单曲循环：开</string>
     <string name="player_repeat_one_off">单曲循环：关</string>
+    <string name="player_service_failed">后台播放服务无法启动，请检查系统限制。</string>
     <string name="player_retry">重试</string>
     <string name="player_error_failed">播放失败</string>
     <string name="player_video_not_found">未找到该视频</string>

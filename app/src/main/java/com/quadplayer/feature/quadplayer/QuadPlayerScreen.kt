@@ -26,9 +26,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
+import com.quadplayer.ui.theme.DepthChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.quadplayer.ui.theme.RoundIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -295,16 +295,11 @@ private fun TopOverlay(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End,
             ) {
-                Surface(
-                    tonalElevation = 4.dp,
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
-                ) {
-                    IconButton(onClick = onShowControls) {
+                RoundIconButton(onClick = onShowControls) {
                         Icon(
                             imageVector = Icons.Rounded.Tune,
                             contentDescription = stringResource(R.string.quad_show_controls),
                         )
-                    }
                 }
             }
         }
@@ -373,21 +368,21 @@ private fun BottomOverlay(
                     .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                AssistChip(
+                DepthChip(
                     onClick = {
                         onInteraction()
                         viewModel.togglePlayAll()
                     },
                     label = { Text(stringResource(R.string.quad_play_pause_all)) },
                 )
-                AssistChip(
+                DepthChip(
                     onClick = {
                         onInteraction()
                         viewModel.syncToAudioSource()
                     },
                     label = { Text(stringResource(R.string.quad_sync_to_audio)) },
                 )
-                AssistChip(
+                DepthChip(
                     onClick = {
                         onInteraction()
                         viewModel.muteAll()
@@ -404,7 +399,7 @@ private fun BottomOverlay(
             ) {
                 Text(stringResource(R.string.quad_speed_title), style = MaterialTheme.typography.labelLarge)
                 PlaybackSpeed.entries.forEach { speed ->
-                    AssistChip(
+                    DepthChip(
                         onClick = {
                             onInteraction()
                             viewModel.setGlobalSpeed(speed)
@@ -553,15 +548,12 @@ private fun QuadSlotContent(
                         }
                     }
                 }
-                Surface(
+                RoundIconButton(
                     modifier = Modifier.align(Alignment.TopEnd).padding(end = 4.dp, top = audioTopInset),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                    shape = MaterialTheme.shapes.small,
+                    onClick = { onSwitchAudio(slot.index) },
                 ) {
-                    IconButton(onClick = { onSwitchAudio(slot.index) }) {
                         Icon(Icons.Rounded.VolumeUp, contentDescription = stringResource(R.string.quad_select_audio),
                             tint = if (slot.isAudioSource) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface)
-                    }
                 }
                 if (slot.isAudioSource) {
                     Surface(
@@ -642,7 +634,7 @@ private fun SlotMenuDialog(
                 item {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         PlaybackSpeed.entries.forEach { speed ->
-                            AssistChip(onClick = { onSetSpeed(speed) }, label = { Text(if (speed == slot.playbackSpeed) "✓ ${speed.label}" else speed.label) })
+                            DepthChip(onClick = { onSetSpeed(speed) }, label = { Text(if (speed == slot.playbackSpeed) "✓ ${speed.label}" else speed.label) })
                         }
                     }
                 }
