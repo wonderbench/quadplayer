@@ -66,6 +66,8 @@ import com.quadplayer.core.model.PlaylistSummary
 import com.quadplayer.core.model.RecentPlayback
 import com.quadplayer.core.model.VideoFile
 import com.quadplayer.core.util.formatDuration
+import com.quadplayer.core.data.DocumentAccessGrants
+import com.quadplayer.core.data.DocumentGrantToken
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,6 +84,7 @@ fun HomeScreen(
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var playlistTarget by remember { mutableStateOf<VideoFile?>(null) }
     var removalTarget by remember { mutableStateOf<VideoFile?>(null) }
+    var revokeTarget by remember { mutableStateOf<Pair<VideoFile, DocumentGrantToken>?>(null) }
 
 
 
@@ -231,18 +234,33 @@ fun HomeScreen(
         )
     }
     removalTarget?.let { target ->
+        val token = remember(target.id, target.uriString) { DocumentAccessGrants.capture(target.uri) }
         AlertDialog(
             onDismissRequest = { removalTarget = null },
             title = { Text(stringResource(R.string.import_remove_title)) },
             text = { Text(stringResource(R.string.import_remove_confirmation, target.displayName)) },
-            confirmButton = { TextButton(onClick = { viewModel.hideManualVideo(target.id); removalTarget = null }) { Text(stringResource(R.string.import_remove_action)) } },
+            confirmButton = {
+                Column {
+                    TextButton(onClick = { viewModel.hideManualVideo(target.id, target.uriString); removalTarget = null }) { Text(stringResource(R.string.import_remove_action)) }
+                    TextButton(onClick = { revokeTarget = target to token; removalTarget = null }) { Text(stringResource(R.string.import_remove_and_revoke)) }
+                }
+            },
             dismissButton = { TextButton(onClick = { removalTarget = null }) { Text(stringResource(R.string.common_cancel)) } },
         )
     }
-    if (removalError) {
+    revokeTarget?.let { (target, token) ->
+        AlertDialog(
+            onDismissRequest = { revokeTarget = null },
+            title = { Text(stringResource(R.string.import_revoke_title)) },
+            text = { Text(stringResource(R.string.import_revoke_confirmation, target.displayName)) },
+            confirmButton = { TextButton(onClick = { viewModel.hideManualVideo(target.id, target.uriString, token); revokeTarget = null }) { Text(stringResource(R.string.import_revoke_action)) } },
+            dismissButton = { TextButton(onClick = { revokeTarget = null }) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
+    removalError?.let { error ->
         AlertDialog(
             onDismissRequest = viewModel::dismissRemovalError,
-            text = { Text(stringResource(R.string.import_remove_failed)) },
+            text = { Text(stringResource(error)) },
             confirmButton = { TextButton(onClick = viewModel::dismissRemovalError) { Text(stringResource(R.string.common_close)) } },
         )
     }

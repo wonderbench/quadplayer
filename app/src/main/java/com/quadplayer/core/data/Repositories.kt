@@ -40,7 +40,7 @@ interface VideoRepository {
     suspend fun importVideo(uri: Uri): VideoFile?
     suspend fun getVideo(videoId: Long): VideoFile?
     suspend fun toggleFavorite(videoId: Long)
-    suspend fun hideManualVideo(videoId: Long): Boolean
+    suspend fun hideManualVideo(videoId: Long, uriString: String, expectedGrantRevision: Long? = null): Boolean
 }
 
 interface HistoryRepository {
@@ -150,8 +150,11 @@ class DefaultVideoRepository @Inject constructor(
         videoDao.setFavorite(videoId, !current.isFavorite)
     }
 
-    override suspend fun hideManualVideo(videoId: Long): Boolean = withContext(Dispatchers.IO) {
-        manualAccessLock.withLock { videoDao.hideManualVideo(videoId) == 1 }
+    override suspend fun hideManualVideo(videoId: Long, uriString: String, expectedGrantRevision: Long?): Boolean = withContext(Dispatchers.IO) {
+        manualAccessLock.withLock {
+            if (expectedGrantRevision != null && !DocumentAccessGrants.isCurrent(uriString, expectedGrantRevision)) return@withLock false
+            videoDao.hideManualVideo(videoId, uriString) == 1
+        }
     }
 }
 

@@ -51,8 +51,8 @@ interface VideoDao {
     @Query("UPDATE videos SET is_accessible = 1, is_hidden = 0 WHERE id = :videoId")
     suspend fun markAvailable(videoId: Long)
 
-    @Query("UPDATE videos SET is_hidden = 1 WHERE id = :videoId AND is_manually_added = 1 AND is_accessible = 1 AND is_hidden = 0")
-    suspend fun hideManualVideo(videoId: Long): Int
+    @Query("UPDATE videos SET is_hidden = 1 WHERE id = :videoId AND uri_string = :uriString AND is_manually_added = 1 AND is_accessible = 1 AND is_hidden = 0")
+    suspend fun hideManualVideo(videoId: Long, uriString: String): Int
 
     @Query("UPDATE videos SET is_accessible = 0 WHERE id IN (:ids) AND is_manually_added = 1")
     suspend fun markManualUnavailable(ids: List<Long>)

@@ -6,7 +6,7 @@ import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
 import android.content.res.Configuration
 import android.content.Context
-import android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+import com.quadplayer.core.data.DocumentAccessGrants
 import android.media.AudioManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
@@ -171,18 +171,14 @@ fun PlayerScreen(
     val subtitlePicker = rememberLauncherForActivityResult(OpenDocument()) { uri ->
         pickerOpen = false
         uri?.let {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(it, FLAG_GRANT_READ_URI_PERMISSION)
-            }
+            DocumentAccessGrants.retainRead(context.contentResolver, it)
             viewModel.setExternalSubtitle(it)
         }
     }
     val audioPicker = rememberLauncherForActivityResult(OpenDocument()) { uri ->
         pickerOpen = false
         uri?.let {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(it, FLAG_GRANT_READ_URI_PERMISSION)
-            }
+            DocumentAccessGrants.retainRead(context.contentResolver, it)
             viewModel.setExternalAudio(it)
         }
     }
