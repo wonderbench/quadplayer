@@ -15,6 +15,7 @@ import com.quadplayer.core.model.PlaybackSpeed
 import com.quadplayer.core.util.DeviceCapabilityChecker
 import com.quadplayer.core.util.PerformanceMonitor
 import com.quadplayer.core.util.PerformanceWarning
+import com.quadplayer.core.util.VideoCapabilityWarning
 import com.quadplayer.feature.player.PlayerController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -27,6 +28,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 
 data class QuadPlayerUiState(
@@ -153,10 +156,24 @@ class QuadPlayerViewModel @Inject constructor(
     fun addVideo(slotIndex: Int, uri: Uri) {
         viewModelScope.launch {
             val video = videoRepository.importVideo(uri) ?: return@launch
-            engine.load(slotIndex, video)
+            loadAndInspect(slotIndex, video)
             val settings = uiState.value.settings
             if (audioSourceManager.currentAudioSource.value == -1) {
                 audioSourceManager.switchTo(slotIndex, volumeTargets, settings.crossfadeAudioSwitching)
+            }
+        }
+    }
+
+    private suspend fun loadAndInspect(slotIndex: Int, video: com.quadplayer.core.model.VideoFile) {
+        engine.load(slotIndex, video)
+        viewModelScope.launch {
+            val warning = withContext(Dispatchers.IO) { capabilityChecker.inspectVideo(video.uri) }
+            if (engine.snapshot().getOrNull(slotIndex)?.uri == video.uriString) {
+                when (warning) {
+                    VideoCapabilityWarning.NoSupportedDecoder -> warningMessage.value = context.getString(R.string.quad_warning_format)
+                    VideoCapabilityWarning.SoftwareOnly -> warningMessage.value = context.getString(R.string.quad_warning_software)
+                    null -> Unit
+                }
             }
         }
     }
@@ -258,7 +275,7 @@ class QuadPlayerViewModel @Inject constructor(
                             if (!canReadMedia(context, uri)) { failed = true; return@forEachIndexed }
                             val video = videoRepository.importVideo(uri)
                             if (video == null) { failed = true; return@forEachIndexed }
-                            engine.load(index, video)
+                            loadAndInspect(index, video)
                             engine.seekSlot(index, slot.positionMs)
                             engine.setSlotSpeed(index, PlaybackSpeed.fromValue(slot.speed))
                             if (!slot.playing) engine.controllerAt(index)?.pause()

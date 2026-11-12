@@ -2,6 +2,8 @@ package com.quadplayer.core.util
 
 import android.app.ActivityManager
 import android.content.Context
+import android.os.Build
+import android.os.PowerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -11,7 +13,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,8 +36,8 @@ class PerformanceMonitor @Inject constructor() {
                 if (memoryInfo.availMem / (1024 * 1024) < 200) {
                     _warnings.tryEmit(PerformanceWarning.LowMemory)
                 }
-                val thermal = readCpuTemperature()
-                if (thermal != null && thermal > 42f) {
+                val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+                if (Build.VERSION.SDK_INT >= 29 && powerManager.currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE) {
                     _warnings.tryEmit(PerformanceWarning.ThermalThrottle)
                 }
                 delay(2000)
@@ -49,11 +50,4 @@ class PerformanceMonitor @Inject constructor() {
         monitorJob = null
     }
 
-    private fun readCpuTemperature(): Float? {
-        return runCatching {
-            val file = File("/sys/class/thermal/thermal_zone0/temp")
-            if (!file.exists()) return null
-            file.readText().trim().toFloatOrNull()?.div(1000f)
-        }.getOrNull()
-    }
 }
