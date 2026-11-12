@@ -1,0 +1,29 @@
+{
+  "model": "sdk_gphone64_x86_64",
+  "manufacturer": "Google",
+  "api": 36,
+  "playerCount": 1,
+  "sampleSeconds": 12,
+  "sourceDurationMs": 120000,
+  "screenWidthPx": 1080,
+  "screenHeightPx": 2400,
+  "trackMime": "video\/mp4v-es",
+  "width": 320,
+  "height": 180,
+  "frameRate": 15,
+  "firstFrameMs": [
+    272
+  ],
+  "peakProcessPssKb": 238350,
+  "renderedFrames": [
+    184
+  ],
+  "droppedFrames": [
+    0
+  ],
+  "estimatedPtsDriftMs": {
+    "1": 0,
+    "10": 0
+  },
+  "thermalStatus": 0
+}
