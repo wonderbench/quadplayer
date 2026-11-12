@@ -2,6 +2,8 @@
 
 QuadPlayer 是一款 Android 本地视频播放器，可在同一屏幕上同时播放最多 4 个视频。四宫格模式支持随时切换声音来源，也可以将所有画面的播放进度对齐到当前音频源，适合对比视频素材或查看同一事件的多个机位。
 
+应用不申请网络访问权限，媒体文件在设备本地播放。
+
 ## 下载与安装
 
 **[下载 QuadPlayer v1.0 APK](https://github.com/wonderbench/quadplayer/releases/download/v1.0/QPapp-debug.apk)** · [查看 v1.0 发布页](https://github.com/wonderbench/quadplayer/releases/tag/v1.0)
