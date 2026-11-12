@@ -126,4 +126,5 @@ data class AppSettings(
     val crossfadeAudioSwitching: Boolean = true,
     val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val subtitleStyle: SubtitleStyle = SubtitleStyle(),
+    val autoPictureInPicture: Boolean = false,
 )

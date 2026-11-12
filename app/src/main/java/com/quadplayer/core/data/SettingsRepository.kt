@@ -45,6 +45,7 @@ interface SettingsRepository {
     suspend fun setCrossfadeAudioSwitching(enabled: Boolean)
     suspend fun setThemeMode(themeMode: AppThemeMode)
     suspend fun setSubtitleStyle(style: SubtitleStyle)
+    suspend fun setAutoPictureInPicture(enabled: Boolean)
 }
 
 @Singleton
@@ -66,6 +67,7 @@ class DataStoreSettingsRepository @Inject constructor(
             autoResume = preferences[KEY_AUTO_RESUME] ?: true,
             crossfadeAudioSwitching = preferences[KEY_CROSSFADE_AUDIO] ?: true,
             themeMode = savedEnumOrDefault(preferences[KEY_THEME_MODE], AppThemeMode.SYSTEM),
+            autoPictureInPicture = preferences[KEY_AUTO_PIP] ?: false,
             subtitleStyle = SubtitleStyle(
                 fontScale = preferences[KEY_SUBTITLE_FONT_SCALE] ?: 1f,
                 foregroundColor = preferences[KEY_SUBTITLE_FOREGROUND] ?: SubtitleStyle().foregroundColor,
@@ -106,6 +108,10 @@ class DataStoreSettingsRepository @Inject constructor(
         dataStore.edit { it[KEY_THEME_MODE] = themeMode.name }
     }
 
+    override suspend fun setAutoPictureInPicture(enabled: Boolean) {
+        dataStore.edit { it[KEY_AUTO_PIP] = enabled }
+    }
+
     override suspend fun setSubtitleStyle(style: SubtitleStyle) {
         dataStore.edit {
             it[KEY_SUBTITLE_FONT_SCALE] = style.fontScale
@@ -123,6 +129,7 @@ class DataStoreSettingsRepository @Inject constructor(
         val KEY_AUTO_RESUME = booleanPreferencesKey("auto_resume")
         val KEY_CROSSFADE_AUDIO = booleanPreferencesKey("crossfade_audio")
         val KEY_THEME_MODE = stringPreferencesKey("theme_mode")
+        val KEY_AUTO_PIP = booleanPreferencesKey("auto_picture_in_picture")
         val KEY_SUBTITLE_FONT_SCALE = floatPreferencesKey("subtitle_font_scale")
         val KEY_SUBTITLE_FOREGROUND = longPreferencesKey("subtitle_foreground")
         val KEY_SUBTITLE_BACKGROUND = longPreferencesKey("subtitle_background")

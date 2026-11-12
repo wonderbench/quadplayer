@@ -32,6 +32,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -130,6 +133,14 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             checked = settings.backgroundPlayback,
             onCheckedChange = viewModel::setBackgroundPlayback,
         )
+        if (Build.VERSION.SDK_INT >= 31 && LocalContext.current.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            SwitchRow(
+                label = stringResource(R.string.settings_auto_pip),
+                description = stringResource(R.string.settings_auto_pip_desc),
+                checked = settings.autoPictureInPicture,
+                onCheckedChange = viewModel::setAutoPictureInPicture,
+            )
+        }
         SwitchRow(
             label = stringResource(R.string.settings_auto_resume),
             description = stringResource(R.string.settings_auto_resume_desc),

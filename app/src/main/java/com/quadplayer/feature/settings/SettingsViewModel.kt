@@ -50,6 +50,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setBackgroundPlayback(enabled) }
     }
 
+    fun setAutoPictureInPicture(enabled: Boolean) {
+        viewModelScope.launch { settingsRepository.setAutoPictureInPicture(enabled) }
+    }
+
     fun setAutoResume(enabled: Boolean) {
         viewModelScope.launch { settingsRepository.setAutoResume(enabled) }
     }
