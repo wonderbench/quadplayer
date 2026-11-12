@@ -106,6 +106,12 @@ fun PlayerScreen(
     var seekPosition by remember { mutableFloatStateOf(0f) }
     var showMore by remember { mutableStateOf(false) }
     var inPip by remember { mutableStateOf(activity?.isInPictureInPictureMode == true) }
+    var speedBeforeHold by remember { mutableStateOf<PlaybackSpeed?>(null) }
+    fun endSpeedHold() {
+        speedBeforeHold?.let(viewModel::setSpeed)
+        speedBeforeHold = null
+    }
+    DisposableEffect(viewModel) { onDispose { endSpeedHold() } }
     DisposableEffect(activity) {
         val component = activity as? ComponentActivity
         val listener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { inPip = it.isInPictureInPictureMode }
@@ -134,6 +140,7 @@ fun PlayerScreen(
     DisposableEffect(lifecycleOwner, state.settings.backgroundPlayback) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_STOP) {
+                endSpeedHold()
                 viewModel.onBackgroundStateChanged(
                     allowBackgroundPlayback = state.settings.backgroundPlayback,
                     isInPictureInPicture = activity?.isInPictureInPictureMode == true,
@@ -208,8 +215,21 @@ fun PlayerScreen(
             reverseDoubleTapSeek = state.settings.reverseDoubleTapSeek,
             onToggleControls = viewModel::toggleControls,
             onSeekBy = { viewModel.seekBy(it) },
-            onLongPress = { viewModel.setSpeed(PlaybackSpeed.X2_0) },
+            onLongPress = {
+                if (speedBeforeHold == null) {
+                    speedBeforeHold = PlaybackSpeed.fromValue(viewModel.controller.player.playbackParameters.speed)
+                    viewModel.setSpeed(PlaybackSpeed.X2_0)
+                }
+            },
+            onPressEnd = { endSpeedHold() },
         )
+
+        if (!inPip && speedBeforeHold != null) {
+            Surface(modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 16.dp),
+                shape = MaterialTheme.shapes.medium, tonalElevation = 6.dp) {
+                Text(stringResource(R.string.player_hold_speed), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            }
+        }
 
         if (!inPip) playerMessage?.let { message ->
             Surface(
@@ -593,6 +613,7 @@ private fun GestureOverlay(
     onToggleControls: () -> Unit,
     onSeekBy: (Long) -> Unit,
     onLongPress: () -> Unit,
+    onPressEnd: () -> Unit,
 ) {
     val audioManager = remember(context) {
         context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -608,6 +629,9 @@ private fun GestureOverlay(
         modifier = modifier
             .pointerInput(seekSeconds, reverseDoubleTapSeek) {
                 detectTapGestures(
+                    onPress = {
+                        try { tryAwaitRelease() } finally { onPressEnd() }
+                    },
                     onTap = { onToggleControls() },
                     onDoubleTap = { offset ->
                         val seekDeltaMs = seekSeconds * 1000L
