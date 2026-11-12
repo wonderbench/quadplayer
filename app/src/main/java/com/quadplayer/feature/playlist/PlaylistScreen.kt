@@ -9,8 +9,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.material3.Card
-import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowDownward
+import androidx.compose.material.icons.rounded.ArrowUpward
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material3.Icon
+import com.quadplayer.ui.theme.DepthCard
+import com.quadplayer.ui.theme.RoundIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,7 +60,7 @@ fun PlaylistScreen(
         } else {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 itemsIndexed(uiState.videos, key = { _, item -> item.id }) { index, video ->
-                    Card(onClick = { onOpenVideo(video.id) }) {
+                    DepthCard(onClick = { onOpenVideo(video.id) }) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -73,14 +78,14 @@ fun PlaylistScreen(
                                 )
                             }
                             Row {
-                                IconButton(onClick = { viewModel.moveUp(index) }) {
-                                    Text(stringResource(R.string.playlist_move_up))
+                                RoundIconButton(onClick = { viewModel.moveUp(index) }, enabled = index > 0) {
+                                    Icon(Icons.Rounded.ArrowUpward, contentDescription = stringResource(R.string.playlist_move_up))
                                 }
-                                IconButton(onClick = { viewModel.moveDown(index) }) {
-                                    Text(stringResource(R.string.playlist_move_down))
+                                RoundIconButton(onClick = { viewModel.moveDown(index) }, enabled = index < uiState.videos.lastIndex) {
+                                    Icon(Icons.Rounded.ArrowDownward, contentDescription = stringResource(R.string.playlist_move_down))
                                 }
-                                IconButton(onClick = { viewModel.remove(video.id) }) {
-                                    Text(stringResource(R.string.playlist_remove))
+                                RoundIconButton(onClick = { viewModel.remove(video.id) }) {
+                                    Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.playlist_remove))
                                 }
                             }
                         }
