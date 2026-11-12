@@ -165,6 +165,7 @@ class QuadPlayerViewModel @Inject constructor(
             engine.slotStates(audioSourceManager.currentAudioSource).collect {
                 val source = audioSourceManager.currentAudioSource.value
                 if (source in 0..3 && engine.controllerAt(source)?.uiState?.value?.errorMessage != null) {
+                    engine.cancelSynchronization()
                     val fallback = (0..3).firstOrNull { index ->
                         index != source && engine.controllerAt(index)?.let { it.uiState.value.errorMessage == null } == true
                     }
@@ -245,12 +246,14 @@ class QuadPlayerViewModel @Inject constructor(
     }
 
     fun toggleAudioSource(slotIndex: Int) {
+        engine.cancelSynchronization()
         if (engine.hasPlayIntent() && !requestAudioFocus()) return
         val settings = uiState.value.settings
         audioSourceManager.switchTo(slotIndex, volumeTargets, settings.crossfadeAudioSwitching)
     }
 
     fun muteAll() {
+        engine.cancelSynchronization()
         audioSourceManager.muteAll(volumeTargets)
         audioFocus.abandon()
     }
@@ -264,8 +267,10 @@ class QuadPlayerViewModel @Inject constructor(
     fun syncToAudioSource() {
         val sourceIndex = audioSourceManager.currentAudioSource.value
         if (sourceIndex !in 0..3) return
-        val position = engine.currentPosition(sourceIndex) ?: return
-        engine.syncToPosition(position)
+        val started = engine.synchronize(sourceIndex) { success ->
+            if (!success) warningMessage.value = QuadNotice(R.string.quad_sync_incomplete)
+        }
+        if (!started) warningMessage.value = QuadNotice(R.string.quad_sync_not_ready)
     }
 
     fun setSlotRepeat(slotIndex: Int, enabled: Boolean) {

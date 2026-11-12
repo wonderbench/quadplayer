@@ -6,6 +6,8 @@
     <string name="quad_loop_set_b">Set B</string>
     <string name="quad_loop_clear">Clear</string>
     <string name="quad_loop_invalid">Wait until seeking is available and choose B at least 0.25 seconds after A.</string>
+    <string name="quad_sync_not_ready">A video cannot seek yet or has an A–B loop. Try again or clear the loop.</string>
+    <string name="quad_sync_incomplete">Some videos could not align or are shorter than the audio source. Check them and try again.</string>
     <string name="app_name">QuadPlayer</string>
     <string name="nav_home">Home</string>
     <string name="nav_folders">Folders</string>
