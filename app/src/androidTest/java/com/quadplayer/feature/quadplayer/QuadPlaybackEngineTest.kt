@@ -21,6 +21,32 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class QuadPlaybackEngineTest {
+    @Test fun backgroundPausesAndRestoresOnlyPriorPlayIntentsIncludingLateImports() = runBlocking(Dispatchers.Main) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = File(context.cacheDir, "quad-lifecycle-test.wav").apply { writeBytes(ByteArray(44)) }
+        fun video(id: Long) = VideoFile(id, Uri.fromFile(file).toString(), "test$id", "test", "test", 5000, file.length(), 0, 0, "audio/wav", 0, false, true)
+        val engine = QuadPlaybackEngine(context)
+        try {
+            engine.load(0, video(1))
+            engine.load(1, video(2))
+            engine.setSlotPlaying(1, false)
+            engine.suspendPlayback()
+            engine.suspendPlayback() // duplicate lifecycle notifications must not erase intent
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+            assertFalse(engine.controllerAt(1)!!.player.playWhenReady)
+            assertTrue(engine.snapshot()[0]!!.playing)
+            assertFalse(engine.snapshot()[1]!!.playing)
+            engine.load(2, video(3)) // a picker/import can finish while stopped
+            assertFalse(engine.controllerAt(2)!!.player.playWhenReady)
+            assertTrue(engine.snapshot()[2]!!.playing)
+            engine.swap(0, 1)
+            engine.resumePlayback()
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+            assertTrue(engine.controllerAt(1)!!.player.playWhenReady)
+            assertTrue(engine.controllerAt(2)!!.player.playWhenReady)
+        } finally { engine.release(); file.delete() }
+    }
+
     @Test fun swapCarriesPositionAndPlaybackIntentAndRemovalClearsMedia() = runBlocking(Dispatchers.Main) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val file = File(context.cacheDir, "quad-test.wav")
