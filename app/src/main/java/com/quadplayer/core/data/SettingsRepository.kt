@@ -2,9 +2,11 @@ package com.quadplayer.core.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -17,11 +19,19 @@ import com.quadplayer.core.model.PlaybackSpeed
 import com.quadplayer.core.model.SubtitleStyle
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "quadplayer_settings")
+private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
+    name = "quadplayer_settings",
+    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+)
+
+internal inline fun <reified T : Enum<T>> savedEnumOrDefault(value: String?, default: T): T =
+    enumValues<T>().firstOrNull { it.name == value } ?: default
 
 interface SettingsRepository {
     val settings: Flow<AppSettings>
@@ -44,16 +54,18 @@ class DataStoreSettingsRepository @Inject constructor(
 
     private val dataStore = context.dataStore
 
-    override val settings: Flow<AppSettings> = dataStore.data.map { preferences ->
+    override val settings: Flow<AppSettings> = dataStore.data.catch { error ->
+        if (error is IOException) emit(emptyPreferences()) else throw error
+    }.map { preferences ->
         AppSettings(
-            decoderMode = DecoderMode.valueOf(preferences[KEY_DECODER_MODE] ?: DecoderMode.AUTO.name),
+            decoderMode = savedEnumOrDefault(preferences[KEY_DECODER_MODE], DecoderMode.AUTO),
             defaultPlaybackSpeed = PlaybackSpeed.fromValue(preferences[KEY_DEFAULT_SPEED] ?: 1f),
             doubleTapSeekSeconds = preferences[KEY_DOUBLE_TAP_SECONDS] ?: 10,
             reverseDoubleTapSeek = preferences[KEY_REVERSE_DOUBLE_TAP] ?: false,
             backgroundPlayback = preferences[KEY_BACKGROUND_PLAYBACK] ?: false,
             autoResume = preferences[KEY_AUTO_RESUME] ?: true,
             crossfadeAudioSwitching = preferences[KEY_CROSSFADE_AUDIO] ?: true,
-            themeMode = AppThemeMode.valueOf(preferences[KEY_THEME_MODE] ?: AppThemeMode.SYSTEM.name),
+            themeMode = savedEnumOrDefault(preferences[KEY_THEME_MODE], AppThemeMode.SYSTEM),
             subtitleStyle = SubtitleStyle(
                 fontScale = preferences[KEY_SUBTITLE_FONT_SCALE] ?: 1f,
                 foregroundColor = preferences[KEY_SUBTITLE_FOREGROUND] ?: SubtitleStyle().foregroundColor,
