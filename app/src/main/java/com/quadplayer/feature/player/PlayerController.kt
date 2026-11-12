@@ -13,6 +13,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -68,6 +69,7 @@ data class PlayerUiState(
     val errorMessage: String? = null,
     val failure: PlaybackFailure? = null,
     val playWhenReady: Boolean = false,
+    val videoSize: VideoSize = VideoSize.UNKNOWN,
 )
 
 @OptIn(UnstableApi::class)
@@ -97,6 +99,10 @@ class PlayerController(
 
         override fun onTracksChanged(tracks: Tracks) {
             updateStateFromPlayer()
+        }
+
+        override fun onVideoSizeChanged(videoSize: VideoSize) {
+            _uiState.value = _uiState.value.copy(videoSize = videoSize)
         }
 
         override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
@@ -158,7 +164,7 @@ class PlayerController(
             subtitleSelectionExplicit = false
             externalAudioUri = null
         }
-        _uiState.value = _uiState.value.copy(errorMessage = null, failure = null)
+        _uiState.value = _uiState.value.copy(errorMessage = null, failure = null, videoSize = if (isNewVideo) VideoSize.UNKNOWN else _uiState.value.videoSize)
         currentVideo = video
         if (isNewVideo) {
             val matchingFile = withContext(Dispatchers.IO) { findLocalSubtitle(video.localPath) }
@@ -217,7 +223,7 @@ class PlayerController(
         player.pause()
         player.stop()
         player.clearMediaItems()
-        _uiState.value = _uiState.value.copy(errorMessage = null, failure = null)
+        _uiState.value = _uiState.value.copy(errorMessage = null, failure = null, videoSize = VideoSize.UNKNOWN)
         updateStateFromPlayer()
     }
 
