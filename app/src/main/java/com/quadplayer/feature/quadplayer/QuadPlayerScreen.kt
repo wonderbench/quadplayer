@@ -18,6 +18,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,6 +41,11 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -59,9 +68,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
@@ -71,6 +82,7 @@ import androidx.media3.ui.PlayerView
 import com.quadplayer.R
 import com.quadplayer.core.model.PlaybackSpeed
 import com.quadplayer.core.model.LayoutMode
+import com.quadplayer.core.data.QuadPreset
 import com.quadplayer.core.ui.ImmersiveFullscreen
 import com.quadplayer.core.ui.LockScreenOrientation
 import kotlinx.coroutines.delay
@@ -100,6 +112,10 @@ fun QuadPlayerScreen(
     }
     var pendingSlot by remember { mutableIntStateOf(-1) }
     var menuSlot by remember { mutableStateOf<Int?>(null) }
+    var showPresets by remember { mutableStateOf(false) }
+    var presetName by remember { mutableStateOf("") }
+    var presetToRestore by remember { mutableStateOf<QuadPreset?>(null) }
+    var presetToDelete by remember { mutableStateOf<QuadPreset?>(null) }
     var controlsVisible by remember { mutableStateOf(false) }
     var controlsInteractionVersion by remember { mutableIntStateOf(0) }
     var progressVisibleSlot by remember { mutableIntStateOf(-1) }
@@ -226,9 +242,69 @@ fun QuadPlayerScreen(
                 viewModel = viewModel,
                 slots = state.slots,
                 linkedSeek = state.linkedSeek,
+                onPresets = { showPresets = true },
+                presetsReady = state.presetsReady,
                 onInteraction = { controlsInteractionVersion += 1 },
             )
         }
+        if (state.restoring) {
+            Surface(modifier = Modifier.fillMaxSize().clickable { }, color = Color.Black.copy(alpha = 0.7f)) {
+                Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text(stringResource(R.string.quad_preset_restoring), color = Color.White)
+                    TextButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
+                }
+            }
+        }
+    }
+
+    BackHandler(enabled = state.restoring) { onBack() }
+
+    if (showPresets) {
+        val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+        Dialog(onDismissRequest = { showPresets = false }) {
+            Surface(modifier = Modifier.imePadding().fillMaxWidth(), shape = RoundedCornerShape(18.dp), tonalElevation = 6.dp) {
+                Column(Modifier.padding(if (keyboardVisible) 8.dp else 20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (!keyboardVisible) Text(stringResource(R.string.quad_presets_title), style = MaterialTheme.typography.headlineSmall)
+                    TextField(modifier = Modifier.fillMaxWidth(), value = presetName, onValueChange = { if (it.length <= 80) presetName = it },
+                        label = { Text(stringResource(R.string.quad_preset_name)) }, singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = {
+                            if (presetName.isNotBlank()) { viewModel.savePreset(presetName); presetName = ""; showPresets = false }
+                        }),
+                        colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent))
+                    if (!keyboardVisible) {
+                        if (state.presets.isEmpty()) Text(stringResource(R.string.quad_preset_none))
+                        else LazyColumn(modifier = Modifier.heightIn(max = 150.dp)) {
+                            items(state.presets.size, key = { state.presets[it].id }) { index ->
+                                val preset = state.presets[index]
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    TextButton(modifier = Modifier.weight(1f), onClick = { presetToRestore = preset }) { Text(preset.name) }
+                                    TextButton(onClick = { presetToDelete = preset }) { Text(stringResource(R.string.quad_preset_delete)) }
+                                }
+                            }
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showPresets = false }) { Text(stringResource(R.string.common_done)) }
+                        TextButton(enabled = presetName.isNotBlank(), onClick = { viewModel.savePreset(presetName); presetName = ""; showPresets = false }) { Text(stringResource(R.string.quad_preset_save)) }
+                    }
+                }
+            }
+        }
+    }
+
+    presetToRestore?.let { preset ->
+        AlertDialog(onDismissRequest = { presetToRestore = null }, title = { Text(stringResource(R.string.quad_preset_load_title)) },
+            text = { Text(stringResource(R.string.quad_preset_load_confirm, preset.name)) },
+            confirmButton = { TextButton(onClick = { viewModel.restorePreset(preset.id); presetToRestore = null; showPresets = false }) { Text(stringResource(R.string.quad_session_restore)) } },
+            dismissButton = { TextButton(onClick = { presetToRestore = null }) { Text(stringResource(R.string.common_cancel)) } })
+    }
+    presetToDelete?.let { preset ->
+        AlertDialog(onDismissRequest = { presetToDelete = null }, title = { Text(stringResource(R.string.quad_preset_delete_title)) },
+            text = { Text(stringResource(R.string.quad_preset_delete_confirm, preset.name)) },
+            confirmButton = { TextButton(onClick = { viewModel.deletePreset(preset.id); presetToDelete = null }) { Text(stringResource(R.string.quad_preset_delete)) } },
+            dismissButton = { TextButton(onClick = { presetToDelete = null }) { Text(stringResource(R.string.common_cancel)) } })
     }
 
     if (state.offerRecovery) {
@@ -332,7 +408,7 @@ private fun TopOverlay(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 tonalElevation = 4.dp,
-                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.94f),
+                color = (if (warning.isError) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceVariant).copy(alpha = 0.94f),
             ) {
                 Row(
                     modifier = Modifier
@@ -344,7 +420,7 @@ private fun TopOverlay(
                     Text(
                         text = quadNoticeText(warning),
                         modifier = Modifier.weight(1f),
-                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        color = if (warning.isError) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     TextButton(onClick = onDismissWarning) {
                         Text(stringResource(R.string.quad_dismiss))
@@ -379,6 +455,8 @@ private fun BottomOverlay(
     viewModel: QuadPlayerViewModel,
     slots: List<QuadSlotUiState>,
     linkedSeek: Boolean,
+    onPresets: () -> Unit,
+    presetsReady: Boolean,
     onInteraction: () -> Unit,
 ) {
     Surface(
@@ -394,6 +472,7 @@ private fun BottomOverlay(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+                DepthChip(enabled = presetsReady, onClick = { onInteraction(); onPresets() }, label = { Text(stringResource(R.string.quad_presets_title)) })
                 DepthChip(
                     onClick = {
                         onInteraction()

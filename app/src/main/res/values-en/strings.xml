@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="quad_presets_title">Quad presets</string>
+    <string name="quad_preset_name">Preset name</string>
+    <string name="quad_preset_none">No saved presets yet.</string>
+    <string name="quad_preset_save">Save current quad</string>
+    <string name="quad_preset_saved">Quad preset saved.</string>
+    <string name="quad_preset_invalid_name">Enter 1–80 characters without control characters.</string>
+    <string name="quad_preset_duplicate">A preset with that name already exists.</string>
+    <string name="quad_preset_empty">Add a video to the quad first.</string>
+    <string name="quad_preset_not_ready">Resolve the pending session before saving a preset.</string>
+    <string name="quad_preset_error">Could not read or save the preset. Try again.</string>
+    <string name="quad_preset_load_title">Load preset</string>
+    <string name="quad_preset_load_confirm">Loading “%1$s” replaces the current quad and any pending session. Continue?</string>
+    <string name="quad_preset_delete_title">Delete preset</string>
+    <string name="quad_preset_delete_confirm">Delete “%1$s”? Video files will not be deleted.</string>
+    <string name="quad_preset_delete">Delete</string>
+    <string name="quad_preset_restoring">Restoring the quad. Go back to exit.</string>
     <string name="quad_repeat_video">Repeat this video</string>
     <string name="quad_loop_range">Loop range A: %1$s  B: %2$s</string>
     <string name="quad_loop_set_a">Set A</string>

@@ -1,5 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="quad_presets_title">四格预设</string>
+    <string name="quad_preset_name">预设名称</string>
+    <string name="quad_preset_none">暂无已保存的预设。</string>
+    <string name="quad_preset_save">保存当前四格</string>
+    <string name="quad_preset_saved">四格预设已保存。</string>
+    <string name="quad_preset_invalid_name">请输入 1–80 个字符的名称，不可包含控制字符。</string>
+    <string name="quad_preset_duplicate">已有同名预设，请使用其他名称。</string>
+    <string name="quad_preset_empty">请先在四格中添加视频。</string>
+    <string name="quad_preset_not_ready">请先处理待恢复的会话，再保存预设。</string>
+    <string name="quad_preset_error">无法读取或保存预设，请重试。</string>
+    <string name="quad_preset_load_title">加载预设</string>
+    <string name="quad_preset_load_confirm">加载“%1$s”会替换当前四格和待恢复的会话，是否继续？</string>
+    <string name="quad_preset_delete_title">删除预设</string>
+    <string name="quad_preset_delete_confirm">删除“%1$s”？不会删除视频文件。</string>
+    <string name="quad_preset_delete">删除</string>
+    <string name="quad_preset_restoring">正在恢复四格，可返回退出。</string>
     <string name="quad_repeat_video">循环播放此视频</string>
     <string name="quad_loop_range">区间循环 A：%1$s　B：%2$s</string>
     <string name="quad_loop_set_a">设为 A</string>
