@@ -570,7 +570,7 @@ private fun SlotMenuDialog(
                 }
                 item {
                     TextButton(onClick = onTogglePlayback) {
-                        Text(stringResource(if (slot.isPlaying) R.string.common_pause else R.string.common_play))
+                        Text(stringResource(if (shouldPauseOnToggle(slot.playWhenReady, slot.playbackEnded)) R.string.common_pause else R.string.common_play))
                     }
                 }
                 item {
