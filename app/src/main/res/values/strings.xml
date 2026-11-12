@@ -14,6 +14,9 @@
     <string name="common_done">完成</string>
     <string name="common_pause">暂停</string>
     <string name="common_play">播放</string>
+    <string name="favorite_add">添加到收藏</string>
+    <string name="favorite_remove">取消收藏</string>
+    <string name="player_progress">播放进度</string>
     <string name="common_refresh">刷新</string>
     <string name="common_remove">移除</string>
     <string name="common_video_count">%1$d 个视频</string>
@@ -153,6 +156,7 @@
     <string name="quad_current_audio">当前音源</string>
     <string name="quad_tap_to_add">点击选择本地视频</string>
     <string name="quad_slot_actions">槽位操作</string>
+    <string name="quad_slot_progress">第 %1$d 格播放进度</string>
     <string name="quad_slot_label">第 %1$d 格</string>
     <string name="quad_start_swap">开始交换</string>
     <string name="quad_complete_swap">与当前选择交换</string>
