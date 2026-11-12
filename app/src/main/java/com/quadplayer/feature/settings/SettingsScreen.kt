@@ -104,6 +104,20 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 }
             }
         }
+        SettingSection(
+            title = stringResource(R.string.settings_subtitles),
+            description = stringResource(R.string.settings_subtitles_desc),
+        ) {
+            Text(stringResource(R.string.settings_subtitle_size), style = MaterialTheme.typography.labelLarge)
+            ChipRow(values = listOf(0.8f, 1f, 1.25f, 1.5f), selected = settings.subtitleStyle.fontScale,
+                label = { "${(it * 100).toInt()}%" }, onClick = viewModel::setSubtitleScale)
+            Text(stringResource(R.string.settings_subtitle_color), style = MaterialTheme.typography.labelLarge)
+            ChipRow(values = listOf(-1L, 0xFFFFFF00.toInt().toLong()), selected = settings.subtitleStyle.foregroundColor,
+                label = { stringResource(if (it == -1L) R.string.settings_subtitle_white else R.string.settings_subtitle_yellow) }, onClick = viewModel::setSubtitleForeground)
+            Text(stringResource(R.string.settings_subtitle_background), style = MaterialTheme.typography.labelLarge)
+            ChipRow(values = listOf(0L, 0x73000000L, 0xFF000000.toInt().toLong()), selected = settings.subtitleStyle.backgroundColor,
+                label = { stringResource(when (it) { 0L -> R.string.settings_subtitle_transparent; 0x73000000L -> R.string.settings_subtitle_translucent; else -> R.string.settings_subtitle_black }) }, onClick = viewModel::setSubtitleBackground)
+        }
         SwitchRow(
             label = stringResource(R.string.settings_reverse_double_tap_seek),
             description = stringResource(R.string.settings_reverse_double_tap_seek_desc),
