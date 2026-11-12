@@ -14,6 +14,13 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,6 +38,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.quadplayer.R
+import com.quadplayer.MainActivityViewModel
 import com.quadplayer.feature.filebrowser.FileBrowserScreen
 import com.quadplayer.feature.filebrowser.FileBrowserViewModel
 import com.quadplayer.feature.home.HomeScreen
@@ -51,8 +59,20 @@ private data class BottomDestination(
 )
 
 @Composable
-fun QuadPlayerApp() {
+fun QuadPlayerApp(activityViewModel: MainActivityViewModel) {
     val navController = rememberNavController()
+    val externalVideo by activityViewModel.externalVideo.collectAsStateWithLifecycle()
+    var externalOpenFailed by remember { mutableStateOf(false) }
+    LaunchedEffect(externalVideo) {
+        externalVideo?.let { result ->
+            activityViewModel.consumeExternalVideo(result)
+            if (result.videoId == null) externalOpenFailed = true
+            else {
+                externalOpenFailed = false
+                navController.navigate(Screen.Player.create(result.videoId))
+            }
+        }
+    }
     val bottomDestinations = listOf(
         BottomDestination(Screen.Home, R.string.nav_home) { Icon(Icons.Rounded.Home, contentDescription = null) },
         BottomDestination(Screen.Folders, R.string.nav_folders) { Icon(Icons.Rounded.Folder, contentDescription = null) },
@@ -115,6 +135,13 @@ fun QuadPlayerApp() {
                 )
             }
         }
+    }
+    if (externalOpenFailed) {
+        AlertDialog(
+            onDismissRequest = { externalOpenFailed = false },
+            text = { Text(stringResource(R.string.external_video_open_failed)) },
+            confirmButton = { TextButton(onClick = { externalOpenFailed = false }) { Text(stringResource(R.string.common_close)) } },
+        )
     }
 }
 

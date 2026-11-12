@@ -101,12 +101,17 @@ class DefaultVideoRepository @Inject constructor(
     }
 
     override suspend fun importVideo(uri: Uri): VideoFile? = withContext(Dispatchers.IO) {
-        val existing = videoDao.getByUriString(uri.toString())
-        if (existing != null) return@withContext existing.toModel()
-
         val imported = scanner.inspectImportedVideo(uri) ?: return@withContext null
-        val id = videoDao.upsert(imported)
-        (videoDao.getById(id) ?: imported.copy(id = id)).toModel()
+        database.withTransaction {
+            val existing = videoDao.getByUriString(uri.toString())
+            if (existing != null) {
+                if (!existing.isAccessible) videoDao.markAvailable(existing.id)
+                existing.copy(isAccessible = true).toModel()
+            } else {
+                val id = videoDao.upsert(imported)
+                (videoDao.getById(id) ?: imported.copy(id = id)).toModel()
+            }
+        }
     }
 
     override suspend fun getVideo(videoId: Long): VideoFile? = withContext(Dispatchers.IO) {

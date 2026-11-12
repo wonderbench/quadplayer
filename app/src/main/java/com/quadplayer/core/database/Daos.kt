@@ -59,6 +59,9 @@ interface VideoDao {
 
     @Query("UPDATE videos SET is_accessible = 0 WHERE id IN (:ids)")
     suspend fun markUnavailable(ids: List<Long>)
+
+    @Query("UPDATE videos SET is_accessible = 1 WHERE id = :videoId")
+    suspend fun markAvailable(videoId: Long)
 }
 
 @Dao
