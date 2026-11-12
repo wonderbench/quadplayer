@@ -65,6 +65,9 @@ class PlaybackSessionHost @Inject constructor(
 
     fun stopService() {
         serviceRequested = false
+        // Stopping a started service does not destroy it while a controller is bound.
+        // Explicitly release the media session before dropping the started state.
+        serviceListener?.invoke(null)
         context.stopService(Intent(context, PlaybackService::class.java))
         val current = active
         if (!serviceAttached && current != null && current !in screens) {
@@ -74,6 +77,14 @@ class PlaybackSessionHost @Inject constructor(
     }
 
     fun attachService(listener: (PlaybackSession?) -> Unit) {
+        if (serviceListener === listener) {
+            serviceRequested = false
+            return
+        }
+        if (!serviceRequested) {
+            listener(null)
+            return
+        }
         serviceAttached = true
         serviceRequested = false
         serviceListener = listener

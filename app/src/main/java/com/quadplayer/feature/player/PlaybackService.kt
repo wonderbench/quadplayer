@@ -48,6 +48,13 @@ class PlaybackService : MediaSessionService() {
         host.attachService(sessionListener)
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val result = super.onStartCommand(intent, flags, startId)
+        // A bound service can outlive stopService; reconnect on a new explicit start.
+        host.attachService(sessionListener)
+        return result
+    }
+
     private fun attachPlayback(playback: PlaybackSession?) {
         current?.onBackgroundPolicyChanged = null
         current?.controller?.let { old ->
@@ -56,8 +63,7 @@ class PlaybackService : MediaSessionService() {
         }
         current = playback
         if (playback == null) {
-            session?.release()
-            session = null
+            releasePlaybackSession()
             stopSelf()
             return
         }
