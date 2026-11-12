@@ -46,7 +46,7 @@ class QuadPlayerViewModel @Inject constructor(
     private val layoutManager = QuadLayoutManager()
     private val warningMessage = MutableStateFlow<String?>(null)
     private val pendingSwapSource = MutableStateFlow<Int?>(null)
-    private val volumeTargets = List(4) { QuadVolumeTarget(engine.controllerAt(it)) }
+    private val volumeTargets = List(4) { QuadVolumeTarget(engine, it) }
 
     private val baseUiState = combine(
         engine.slotStates(audioSourceManager.currentAudioSource),
@@ -101,7 +101,7 @@ class QuadPlayerViewModel @Inject constructor(
         layoutManager.reset()
     }
 
-    fun controllerAt(index: Int): PlayerController = engine.controllerAt(index)
+    fun controllerAt(index: Int): PlayerController? = engine.controllerAt(index)
 
     fun addVideo(slotIndex: Int, uri: Uri) {
         viewModelScope.launch {
@@ -147,7 +147,7 @@ class QuadPlayerViewModel @Inject constructor(
 
     fun setSlotSpeed(slotIndex: Int, speed: PlaybackSpeed) = engine.setSlotSpeed(slotIndex, speed)
 
-    fun retrySlot(slotIndex: Int) = engine.controllerAt(slotIndex).retry()
+    fun retrySlot(slotIndex: Int) = engine.controllerAt(slotIndex)?.retry()
 
     fun seekSlot(slotIndex: Int, positionMs: Long) {
         engine.seekSlot(slotIndex, positionMs)

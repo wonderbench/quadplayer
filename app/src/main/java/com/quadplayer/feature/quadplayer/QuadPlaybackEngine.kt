@@ -5,8 +5,14 @@ import com.quadplayer.core.model.AppSettings
 import com.quadplayer.core.model.PlaybackSpeed
 import com.quadplayer.core.model.VideoFile
 import com.quadplayer.feature.player.PlayerController
+import com.quadplayer.feature.player.PlayerUiState
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 
 data class QuadSlotUiState(
     val index: Int,
@@ -19,93 +25,80 @@ data class QuadSlotUiState(
     val errorMessage: String? = null,
 )
 
-class QuadPlaybackEngine(
-    context: Context,
-) {
-    private val controllers = List(4) { PlayerController(context) }
-    private val slotVideos = MutableList<VideoFile?>(4) { null }
+@OptIn(ExperimentalCoroutinesApi::class)
+class QuadPlaybackEngine(private val context: Context) {
+    private data class Slot(val video: VideoFile? = null, val controller: PlayerController? = null)
+    private val slots = List(4) { MutableStateFlow(Slot()) }
+    private val volumes = MutableList(4) { 0f }
+    private var settings = AppSettings()
+    private var globalSpeed: PlaybackSpeed? = null
 
-    fun controllerAt(index: Int): PlayerController = controllers[index]
+    fun controllerAt(index: Int): PlayerController? = slots[index].value.controller
+    internal fun hasController(index: Int): Boolean = slots[index].value.controller != null
 
     fun slotStates(audioSourceFlow: Flow<Int>): Flow<List<QuadSlotUiState>> {
-        return combine(
-            audioSourceFlow,
-            controllers[0].uiState,
-            controllers[1].uiState,
-            controllers[2].uiState,
-            controllers[3].uiState,
-        ) { audioSource, s0, s1, s2, s3 ->
-            listOf(s0, s1, s2, s3).mapIndexed { index, state ->
-                QuadSlotUiState(
-                    index = index,
-                    video = slotVideos[index],
-                    isAudioSource = audioSource == index,
-                    isPlaying = state.isPlaying,
-                    playbackSpeed = state.playbackSpeed,
-                    positionMs = state.currentPositionMs,
-                    durationMs = state.durationMs,
-                    errorMessage = state.errorMessage,
-                )
+        val slotFlows = slots.mapIndexed { index, slot ->
+            slot.flatMapLatest { current ->
+                (current.controller?.uiState ?: flowOf(PlayerUiState())).map { state ->
+                    QuadSlotUiState(index, current.video, false, state.isPlaying, state.playbackSpeed,
+                        state.currentPositionMs, state.durationMs, state.errorMessage)
+                }
             }
+        }
+        return combine(combine(slotFlows) { it.toList() }, audioSourceFlow) { states, audio ->
+            states.map { it.copy(isAudioSource = it.index == audio) }
         }
     }
 
     suspend fun load(slotIndex: Int, video: VideoFile) {
-        slotVideos[slotIndex] = video
-        controllers[slotIndex].load(video)
+        val old = slots[slotIndex].value.controller
+        val controller = old ?: PlayerController(context).also {
+            it.applySettings(settings)
+            globalSpeed?.let(it::setPlaybackSpeed)
+            it.player.volume = volumes[slotIndex]
+        }
+        try {
+            controller.load(video)
+            slots[slotIndex].value = Slot(video, controller)
+        } catch (error: Throwable) {
+            if (old == null) controller.release()
+            throw error
+        }
     }
 
     fun remove(slotIndex: Int) {
-        slotVideos[slotIndex] = null
-        controllers[slotIndex].clear()
+        val controller = slots[slotIndex].value.controller
+        slots[slotIndex].value = Slot()
+        controller?.release()
     }
 
     suspend fun swap(first: Int, second: Int) {
         if (first == second) return
-        val firstVideo = slotVideos[first]
-        val secondVideo = slotVideos[second]
-        val firstPosition = controllers[first].player.currentPosition
-        val secondPosition = controllers[second].player.currentPosition
-        val firstPlaying = controllers[first].player.playWhenReady
-        val secondPlaying = controllers[second].player.playWhenReady
-        controllers[first].clear()
-        controllers[second].clear()
-        slotVideos[first] = secondVideo
-        slotVideos[second] = firstVideo
-        if (secondVideo != null) {
-            controllers[first].load(secondVideo, secondPosition)
-            if (!secondPlaying) controllers[first].pause()
-        }
-        if (firstVideo != null) {
-            controllers[second].load(firstVideo, firstPosition)
-            if (!firstPlaying) controllers[second].pause()
-        }
+        val firstSlot = slots[first].value
+        slots[first].value = slots[second].value
+        slots[second].value = firstSlot
     }
 
     fun togglePlayAll() {
-        val populated = controllers.filterIndexed { index, _ -> slotVideos[index] != null }
+        val populated = slots.mapNotNull { it.value.controller }
         val anyPlaying = populated.any { it.player.playWhenReady }
-        populated.forEach { controller ->
-            if (anyPlaying) controller.pause() else controller.play()
-        }
+        populated.forEach { if (anyPlaying) it.pause() else it.play() }
     }
 
-    fun currentPosition(slotIndex: Int): Long? =
-        if (slotVideos[slotIndex] != null) controllers[slotIndex].player.currentPosition else null
+    fun currentPosition(slotIndex: Int): Long? = slots[slotIndex].value.controller?.player?.currentPosition
 
     fun toggleSlot(slotIndex: Int) {
-        if (slotVideos[slotIndex] == null) return
-        val player = controllers[slotIndex].player
+        val player = slots[slotIndex].value.controller?.player ?: return
         if (player.playWhenReady) player.pause() else player.play()
     }
 
     fun setSlotSpeed(slotIndex: Int, speed: PlaybackSpeed) {
-        if (slotVideos[slotIndex] != null) controllers[slotIndex].setPlaybackSpeed(speed)
+        slots[slotIndex].value.controller?.setPlaybackSpeed(speed)
     }
 
     fun syncToPosition(positionMs: Long) {
-        controllers.forEachIndexed { index, controller ->
-            if (slotVideos[index] != null) {
+        slots.forEach { slot ->
+            slot.value.controller?.let { controller ->
                 val duration = controller.player.duration
                 controller.seekTo(if (duration > 0) positionMs.coerceAtMost(duration) else positionMs)
             }
@@ -113,30 +106,29 @@ class QuadPlaybackEngine(
     }
 
     fun seekSlot(slotIndex: Int, positionMs: Long) {
-        if (slotVideos[slotIndex] != null) {
-            controllers[slotIndex].seekTo(positionMs)
-        }
+        slots[slotIndex].value.controller?.seekTo(positionMs)
     }
 
     suspend fun applySettings(settings: AppSettings) {
-        controllers.forEach { controller ->
-            controller.applySettings(settings)
-        }
+        this.settings = settings
+        slots.forEach { it.value.controller?.applySettings(settings) }
     }
 
     fun setGlobalSpeed(speed: PlaybackSpeed) {
-        controllers.forEach { controller -> controller.setPlaybackSpeed(speed) }
+        globalSpeed = speed
+        slots.forEach { it.value.controller?.setPlaybackSpeed(speed) }
+    }
+
+    fun setVolume(index: Int, volume: Float) {
+        volumes[index] = volume
+        slots[index].value.controller?.player?.volume = volume
     }
 
     fun release() {
-        controllers.forEach(PlayerController::release)
+        slots.forEachIndexed { index, _ -> remove(index) }
     }
 }
 
-class QuadVolumeTarget(
-    private val controller: PlayerController,
-) : VolumeTarget {
-    override fun setVolume(volume: Float) {
-        controller.player.volume = volume
-    }
+class QuadVolumeTarget(private val engine: QuadPlaybackEngine, private val index: Int) : VolumeTarget {
+    override fun setVolume(volume: Float) = engine.setVolume(index, volume)
 }
