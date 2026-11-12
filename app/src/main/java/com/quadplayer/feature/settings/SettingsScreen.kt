@@ -16,9 +16,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import com.quadplayer.ui.theme.TrackDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.AssistChip
+import com.quadplayer.ui.theme.DepthChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -96,7 +96,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 listOf(5, 10, 15, 30).forEach { seconds ->
-                    AssistChip(
+                    DepthChip(
                         onClick = { viewModel.setDoubleTapSeconds(seconds) },
                         label = { Text(stringResource(R.string.settings_seek_seconds, seconds)) },
                     )
@@ -302,7 +302,7 @@ private fun AboutSoftwareSheet(onDismiss: () -> Unit) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     content.requirements.forEachIndexed { index, item ->
                         if (index > 0) {
-                            HorizontalDivider()
+                            TrackDivider()
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -469,7 +469,7 @@ private fun <T> ChipRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         values.forEach { value ->
-            AssistChip(
+            DepthChip(
                 onClick = { onClick(value) },
                 label = {
                     val text = label(value)
