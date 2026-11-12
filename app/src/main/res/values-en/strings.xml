@@ -41,7 +41,10 @@
     <string name="player_progress">Playback progress</string>
     <string name="common_refresh">Refresh</string>
     <string name="common_remove">Remove</string>
-    <string name="common_video_count">%1$d videos</string>
+    <plurals name="common_video_count">
+        <item quantity="one">%1$d video</item>
+        <item quantity="other">%1$d videos</item>
+    </plurals>
     <string name="common_folder_duration">%1$s · %2$s</string>
     <string name="common_empty">Nothing here yet</string>
     <string name="media_local_videos">Local videos</string>
@@ -90,7 +93,10 @@
     <string name="folders_search_folders">Search folders</string>
     <string name="folders_search_videos">Search this folder</string>
     <string name="folders_current_path">Path: %1$s</string>
-    <string name="folders_current_view_summary">%1$d videos · %2$s total · %3$s</string>
+    <plurals name="folders_current_view_summary">
+        <item quantity="one">%1$d video · %2$s total · %3$s</item>
+        <item quantity="other">%1$d videos · %2$s total · %3$s</item>
+    </plurals>
     <string name="folders_sort_title">Sort by</string>
     <string name="folders_sort_name">Name</string>
     <string name="folders_sort_date">Date</string>
@@ -136,7 +142,10 @@
     <string name="settings_subtitle_black">Black</string>
     <string name="settings_default_speed_desc">Playback speed for newly opened videos.</string>
     <string name="settings_double_tap_seek">Double-tap to seek</string>
-    <string name="settings_seek_seconds">%1$d seconds</string>
+    <plurals name="settings_seek_seconds">
+        <item quantity="one">%1$d second</item>
+        <item quantity="other">%1$d seconds</item>
+    </plurals>
     <string name="settings_double_tap_seek_desc">Double-tap left to rewind or right to skip forward.</string>
     <string name="settings_reverse_double_tap_seek">Reverse double-tap direction</string>
     <string name="settings_reverse_double_tap_seek_desc">Double-tap left to skip forward or right to rewind.</string>
@@ -184,7 +193,10 @@
     <string name="player_pip">Picture-in-picture</string>
     <string name="player_switch_landscape">Landscape</string>
     <string name="player_switch_portrait">Portrait</string>
-    <string name="player_seek_forward">Forward %1$d seconds</string>
+    <plurals name="player_seek_forward">
+        <item quantity="one">Forward %1$d second</item>
+        <item quantity="other">Forward %1$d seconds</item>
+    </plurals>
     <string name="media_partial_access">Showing selected videos · Manage access</string>
     <string name="player_previous">Previous</string>
     <string name="player_next">Next</string>

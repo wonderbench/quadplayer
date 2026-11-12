@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -102,7 +103,7 @@ fun FileBrowserScreen(
                 fontWeight = FontWeight.Bold,
             )
             if (compactHeight) {
-                Text(stringResource(R.string.folders_current_view_summary, uiState.videos.size,
+                Text(pluralStringResource(R.plurals.folders_current_view_summary, uiState.videos.size, uiState.videos.size,
                     formatDuration(uiState.totalDurationMs), formatFileSize(uiState.totalSizeBytes)),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
@@ -150,8 +151,9 @@ fun FileBrowserScreen(
         }
 
         if (!compactHeight) Text(
-            text = stringResource(
-                R.string.folders_current_view_summary,
+            text = pluralStringResource(
+                R.plurals.folders_current_view_summary,
+                uiState.videos.size,
                 uiState.videos.size,
                 formatDuration(uiState.totalDurationMs),
                 formatFileSize(uiState.totalSizeBytes),
@@ -306,7 +308,7 @@ private fun FolderPickerSheet(
         )
         FolderChoiceRow(
             title = stringResource(R.string.folders_all_videos),
-            countLabel = stringResource(R.string.common_video_count, uiState.totalVideoCount),
+            countLabel = pluralStringResource(R.plurals.common_video_count, uiState.totalVideoCount, uiState.totalVideoCount),
             selected = uiState.selectedFolder == null,
             onClick = { onSelectFolder(null) },
         )
@@ -326,7 +328,7 @@ private fun FolderPickerSheet(
                 items(uiState.folders, key = { it.path }) { folder ->
                     FolderChoiceRow(
                         title = if (folder.path == "imported") stringResource(R.string.media_imported_folder) else folder.name,
-                        countLabel = stringResource(R.string.common_video_count, folder.videoCount),
+                        countLabel = pluralStringResource(R.plurals.common_video_count, folder.videoCount, folder.videoCount),
                         selected = uiState.selectedFolder?.path == folder.path,
                         onClick = { onSelectFolder(folder.path) },
                     )
