@@ -218,7 +218,8 @@ class PlayerViewModel @Inject constructor(
 
     private fun savePosition() {
         val player = playerController.player
-        historySession.capture(if (player.playbackState == Player.STATE_ENDED) 0L else player.currentPosition)
+        val duration = player.duration.takeIf { it > 0 } ?: video.value?.durationMs ?: 0L
+        historySession.capture(if (player.playbackState == Player.STATE_ENDED) 0L else normalizeResumePosition(player.currentPosition, duration))
     }
 
     override fun onCleared() {

@@ -18,4 +18,4 @@ data class PlaybackQueueState(
 }
 
 internal fun normalizeResumePosition(position: Long, duration: Long): Long =
-    if (duration > 0 && position >= duration) 0L else position.coerceAtLeast(0L)
+    if (duration > 0 && position >= duration - maxOf(1L, duration / 20L)) 0L else position.coerceAtLeast(0L)
