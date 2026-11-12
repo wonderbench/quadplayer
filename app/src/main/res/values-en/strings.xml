@@ -118,6 +118,9 @@
     <string name="settings_about_software_subtitle">QuadPlayer features and guide</string>
     <string name="player_title">Player</string>
     <string name="player_more">More playback options</string>
+    <string name="player_lock_controls">Lock playback controls</string>
+    <string name="player_unlock_controls">Unlock playback controls</string>
+    <string name="player_seek_preview">Seek to %1$s</string>
     <string name="player_current_speed">Playback speed: %1$s</string>
     <string name="settings_auto_pip">Picture-in-picture on exit</string>
     <string name="settings_auto_pip_desc">Enter picture-in-picture when leaving during playback (Android 12 or later).</string>
