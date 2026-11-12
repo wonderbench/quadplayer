@@ -3,6 +3,8 @@ package com.quadplayer.feature.player
 import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import androidx.activity.ComponentActivity
 import android.content.res.Configuration
 import android.content.Context
 import android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -24,6 +26,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -32,6 +39,8 @@ import androidx.compose.material.icons.rounded.ScreenRotationAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -69,6 +78,7 @@ import com.quadplayer.R
 import com.quadplayer.core.model.AspectMode
 import com.quadplayer.core.model.PlaybackSpeed
 import com.quadplayer.core.util.formatDuration
+import com.quadplayer.core.ui.ImmersiveFullscreen
 import kotlinx.coroutines.delay
 
 @Composable
@@ -85,6 +95,16 @@ fun PlayerScreen(
     var showSubtitleDialog by remember { mutableStateOf(false) }
     var orientationOverride by rememberSaveable {
         mutableIntStateOf(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
+    }
+    var isSeeking by remember { mutableStateOf(false) }
+    var seekPosition by remember { mutableFloatStateOf(0f) }
+    var showMore by remember { mutableStateOf(false) }
+    var inPip by remember { mutableStateOf(activity?.isInPictureInPictureMode == true) }
+    DisposableEffect(activity) {
+        val component = activity as? ComponentActivity
+        val listener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { inPip = it.isInPictureInPictureMode }
+        component?.addOnPictureInPictureModeChangedListener(listener)
+        onDispose { component?.removeOnPictureInPictureModeChangedListener(listener) }
     }
     var floatingActionsOnLeft by rememberSaveable { mutableStateOf(false) }
 
@@ -133,8 +153,8 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(state.controlsVisible, state.playerState.isPlaying, state.video?.id) {
-        if (state.controlsVisible && state.playerState.isPlaying) {
+    LaunchedEffect(state.controlsVisible, state.playerState.isPlaying, state.video?.id, isSeeking) {
+        if (state.controlsVisible && state.playerState.isPlaying && !isSeeking) {
             delay(3000)
             viewModel.hideControls()
         }
@@ -155,6 +175,8 @@ fun PlayerScreen(
         else -> configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     }
 
+    if (isLandscapeMode && !inPip) ImmersiveFullscreen()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -165,7 +187,7 @@ fun PlayerScreen(
             viewModel = viewModel,
         )
 
-        GestureOverlay(
+        if (!inPip) GestureOverlay(
             modifier = Modifier.fillMaxSize(),
             context = context,
             seekSeconds = state.settings.doubleTapSeekSeconds,
@@ -175,10 +197,12 @@ fun PlayerScreen(
             onLongPress = { viewModel.setSpeed(PlaybackSpeed.X2_0) },
         )
 
-        playerMessage?.let { message ->
+        if (!inPip) playerMessage?.let { message ->
             Surface(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
+                    .then(if (isLandscapeMode) Modifier else Modifier.statusBarsPadding())
+                    .windowInsetsPadding(WindowInsets.displayCutout)
                     .padding(16.dp),
                 tonalElevation = 6.dp,
                 color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.96f),
@@ -201,9 +225,10 @@ fun PlayerScreen(
             }
         }
 
-        PlayerFloatingActions(
+        if (!inPip) PlayerFloatingActions(
             modifier = Modifier
                 .align(if (floatingActionsOnLeft) Alignment.CenterStart else Alignment.CenterEnd)
+                .windowInsetsPadding(WindowInsets.displayCutout)
                 .padding(horizontal = 16.dp),
             isLandscapeMode = isLandscapeMode,
             seekSeconds = state.settings.doubleTapSeekSeconds,
@@ -221,14 +246,52 @@ fun PlayerScreen(
             },
         )
 
-        if (state.controlsVisible) {
+        if (state.controlsVisible && !inPip) {
             Surface(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .then(if (isLandscapeMode) Modifier else Modifier.navigationBarsPadding())
+                    .windowInsetsPadding(WindowInsets.displayCutout)
                     .fillMaxWidth(),
                 tonalElevation = 8.dp,
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
             ) {
+                if (isLandscapeMode) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = viewModel::togglePlayPause) {
+                                Text(stringResource(if (state.playerState.isPlaying) R.string.common_pause else R.string.common_play))
+                            }
+                            Text(formatDuration(if (isSeeking) seekPosition.toLong() else state.playerState.currentPositionMs))
+                            Slider(
+                                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                                value = if (isSeeking) seekPosition else state.playerState.currentPositionMs.toFloat().coerceIn(0f, state.playerState.durationMs.coerceAtLeast(1L).toFloat()),
+                                onValueChange = { isSeeking = true; seekPosition = it },
+                                onValueChangeFinished = { viewModel.seekTo(seekPosition.toLong()); isSeeking = false },
+                                valueRange = 0f..state.playerState.durationMs.coerceAtLeast(1L).toFloat(),
+                            )
+                            Text(formatDuration(state.playerState.durationMs))
+                            Box {
+                                TextButton(onClick = { showMore = true }) { Text("⋮") }
+                                DropdownMenu(expanded = showMore, onDismissRequest = { showMore = false }) {
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.player_audio)) }, onClick = { showMore = false; showAudioDialog = true })
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.player_subtitle)) }, onClick = { showMore = false; showSubtitleDialog = true })
+                                    DropdownMenuItem(text = { Text(stringResource(R.string.player_aspect)) }, onClick = { showMore = false; viewModel.cycleAspectMode() })
+                                    PlaybackSpeed.entries.forEach { speed ->
+                                        DropdownMenuItem(text = { Text(speed.label) }, onClick = { showMore = false; viewModel.setSpeed(speed) })
+                                    }
+                                    if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+                                        DropdownMenuItem(text = { Text(stringResource(R.string.player_pip)) }, onClick = {
+                                            showMore = false
+                                            runCatching { activity?.enterPictureInPictureMode(PictureInPictureParams.Builder().build()) }
+                                        })
+                                    }
+                                }
+                            }
+                            TextButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
+                        }
+                    }
+                } else {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -258,8 +321,9 @@ fun PlayerScreen(
                     }
 
                     Slider(
-                        value = state.playerState.currentPositionMs.toFloat(),
-                        onValueChange = { viewModel.seekTo(it.toLong()) },
+                        value = if (isSeeking) seekPosition else state.playerState.currentPositionMs.toFloat().coerceIn(0f, state.playerState.durationMs.coerceAtLeast(1L).toFloat()),
+                        onValueChange = { isSeeking = true; seekPosition = it },
+                        onValueChangeFinished = { viewModel.seekTo(seekPosition.toLong()); isSeeking = false },
                         valueRange = 0f..state.playerState.durationMs.coerceAtLeast(1L).toFloat(),
                     )
 
@@ -267,7 +331,7 @@ fun PlayerScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        Text(formatDuration(state.playerState.currentPositionMs))
+                        Text(formatDuration(if (isSeeking) seekPosition.toLong() else state.playerState.currentPositionMs))
                         Text(formatDuration(state.playerState.durationMs))
                     }
 
@@ -293,16 +357,17 @@ fun PlayerScreen(
                                 label = { Text(speed.label) },
                             )
                         }
-                        TextButton(
+                        if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) TextButton(
                             onClick = {
-                                (context as? Activity)?.enterPictureInPictureMode(
+                                runCatching { (context as? Activity)?.enterPictureInPictureMode(
                                     PictureInPictureParams.Builder().build(),
-                                )
+                                ) }
                             },
                         ) {
                             Text(stringResource(R.string.player_pip))
                         }
                     }
+                }
                 }
             }
         }
