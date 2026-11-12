@@ -8,9 +8,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -21,25 +20,38 @@ sealed class PerformanceWarning {
     data object ThermalThrottle : PerformanceWarning()
 }
 
+internal class WarningTransitions {
+    private var active: Set<PerformanceWarning> = emptySet()
+    fun update(lowMemory: Boolean, thermalThrottle: Boolean): List<PerformanceWarning> {
+        val current = buildSet {
+            if (lowMemory) add(PerformanceWarning.LowMemory)
+            if (thermalThrottle) add(PerformanceWarning.ThermalThrottle)
+        }
+        val newlyActive = current - active
+        active = current
+        return newlyActive.toList()
+    }
+}
+
+internal fun enqueueWarning(queue: List<PerformanceWarning>, warning: PerformanceWarning): List<PerformanceWarning> =
+    if (warning in queue) queue else queue + warning
+
 @Singleton
 class PerformanceMonitor @Inject constructor() {
-    private val _warnings = MutableSharedFlow<PerformanceWarning>(extraBufferCapacity = 4)
-    val warnings: SharedFlow<PerformanceWarning> = _warnings.asSharedFlow()
+    private val warningEvents = Channel<PerformanceWarning>(Channel.BUFFERED)
+    val warnings = warningEvents.receiveAsFlow()
     private var monitorJob: Job? = null
 
     fun start(context: Context, scope: CoroutineScope) {
         if (monitorJob != null) return
         monitorJob = scope.launch(Dispatchers.Default) {
             val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+            val transitions = WarningTransitions()
             while (isActive) {
                 val memoryInfo = ActivityManager.MemoryInfo().also { activityManager.getMemoryInfo(it) }
-                if (memoryInfo.availMem / (1024 * 1024) < 200) {
-                    _warnings.tryEmit(PerformanceWarning.LowMemory)
-                }
-                val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
-                if (Build.VERSION.SDK_INT >= 29 && powerManager.currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE) {
-                    _warnings.tryEmit(PerformanceWarning.ThermalThrottle)
-                }
+                val hot = Build.VERSION.SDK_INT >= 29 && powerManager.currentThermalStatus >= PowerManager.THERMAL_STATUS_SEVERE
+                transitions.update(memoryInfo.lowMemory, hot).forEach { warningEvents.trySend(it) }
                 delay(2000)
             }
         }
@@ -48,6 +60,7 @@ class PerformanceMonitor @Inject constructor() {
     fun stop() {
         monitorJob?.cancel()
         monitorJob = null
+        while (warningEvents.tryReceive().isSuccess) { /* discard warnings from the old session */ }
     }
 
 }
