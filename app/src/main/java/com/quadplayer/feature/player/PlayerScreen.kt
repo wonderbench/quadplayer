@@ -36,11 +36,15 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ScreenRotationAlt
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.AlertDialog
-import com.quadplayer.ui.theme.DepthChoiceChip
+import com.quadplayer.ui.theme.DepthChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import com.quadplayer.ui.theme.RoundIconButton
@@ -108,6 +112,7 @@ fun PlayerScreen(
     var isSeeking by remember { mutableStateOf(false) }
     var seekPosition by remember { mutableFloatStateOf(0f) }
     var showMore by remember { mutableStateOf(false) }
+    var showSpeed by remember { mutableStateOf(false) }
     var inPip by remember { mutableStateOf(activity?.isInPictureInPictureMode == true) }
     var speedBeforeHold by remember { mutableStateOf<PlaybackSpeed?>(null) }
     fun endSpeedHold() {
@@ -183,15 +188,15 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(state.controlsVisible, state.playerState.isPlaying, state.video?.id, isSeeking, showMore, showAudioDialog, showSubtitleDialog) {
-        if (state.controlsVisible && state.playerState.isPlaying && !isSeeking && !showMore && !showAudioDialog && !showSubtitleDialog) {
+    LaunchedEffect(state.controlsVisible, state.playerState.isPlaying, state.video?.id, isSeeking, showMore, showSpeed, showAudioDialog, showSubtitleDialog) {
+        if (state.controlsVisible && state.playerState.isPlaying && !isSeeking && !showMore && !showSpeed && !showAudioDialog && !showSubtitleDialog) {
             delay(3000)
             viewModel.hideControls()
         }
     }
 
     LaunchedEffect(state.controlsVisible) {
-        if (!state.controlsVisible) showMore = false
+        if (!state.controlsVisible) { showMore = false; showSpeed = false }
     }
 
     val playerMessage = state.statusMessage ?: if (state.playerState.errorMessage != null) {
@@ -312,8 +317,9 @@ fun PlayerScreen(
                             RoundIconButton(onClick = viewModel::previous, enabled = state.queue.hasPrevious) {
                                 Icon(Icons.Rounded.SkipPrevious, contentDescription = stringResource(R.string.player_previous))
                             }
-                            TextButton(onClick = viewModel::togglePlayPause) {
-                                Text(stringResource(if (state.playerState.isPlaying) R.string.common_pause else R.string.common_play))
+                            RoundIconButton(onClick = viewModel::togglePlayPause) {
+                                Icon(if (state.playerState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                    contentDescription = stringResource(if (state.playerState.isPlaying) R.string.common_pause else R.string.common_play))
                             }
                             RoundIconButton(onClick = viewModel::next, enabled = state.queue.hasNext) {
                                 Icon(Icons.Rounded.SkipNext, contentDescription = stringResource(R.string.player_next))
@@ -328,7 +334,9 @@ fun PlayerScreen(
                             )
                             Text(formatDuration(state.playerState.durationMs))
                             Box {
-                                TextButton(onClick = { showMore = true }) { Text("⋮") }
+                                RoundIconButton(onClick = { showMore = true }) {
+                                    Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.player_more))
+                                }
                                 DropdownMenu(expanded = showMore, onDismissRequest = { showMore = false }) {
                                     DropdownMenuItem(text = { Text(stringResource(R.string.player_audio)) }, onClick = { showMore = false; showAudioDialog = true })
                                     DropdownMenuItem(text = { Text(stringResource(R.string.player_subtitle)) }, onClick = { showMore = false; showSubtitleDialog = true })
@@ -345,7 +353,7 @@ fun PlayerScreen(
                                     }
                                 }
                             }
-                            TextButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
+                            RoundIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_back)) }
                         }
                     }
                 } else {
@@ -360,7 +368,7 @@ fun PlayerScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
+                        RoundIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_back)) }
                         Text(
                             text = state.video?.displayName ?: stringResource(R.string.player_title),
                             modifier = Modifier.weight(1f),
@@ -403,14 +411,9 @@ fun PlayerScreen(
                         RoundIconButton(onClick = viewModel::previous, enabled = state.queue.hasPrevious) {
                             Icon(Icons.Rounded.SkipPrevious, contentDescription = stringResource(R.string.player_previous))
                         }
-                        TextButton(onClick = viewModel::togglePlayPause) {
-                            Text(
-                                if (state.playerState.isPlaying) {
-                                    stringResource(R.string.common_pause)
-                                } else {
-                                    stringResource(R.string.common_play)
-                                },
-                            )
+                        RoundIconButton(onClick = viewModel::togglePlayPause) {
+                            Icon(if (state.playerState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                contentDescription = stringResource(if (state.playerState.isPlaying) R.string.common_pause else R.string.common_play))
                         }
                         RoundIconButton(onClick = viewModel::next, enabled = state.queue.hasNext) {
                             Icon(Icons.Rounded.SkipNext, contentDescription = stringResource(R.string.player_next))
@@ -418,12 +421,17 @@ fun PlayerScreen(
                         TextButton(onClick = viewModel::toggleRepeatOne) {
                             Text(stringResource(if (state.queue.repeatOne) R.string.player_repeat_one_on else R.string.player_repeat_one_off))
                         }
-                        PlaybackSpeed.entries.forEach { speed ->
-                            DepthChoiceChip(
-                                selected = speed == state.playerState.playbackSpeed,
-                                onClick = { viewModel.setSpeed(speed) },
-                                label = { Text(speed.label) },
-                            )
+                        Box {
+                            val speedLabel = stringResource(R.string.player_current_speed, state.playerState.playbackSpeed.label)
+                            DepthChip(onClick = { showSpeed = true }, modifier = Modifier.semantics { contentDescription = speedLabel }, label = { Text(state.playerState.playbackSpeed.label) })
+                            DropdownMenu(expanded = showSpeed, onDismissRequest = { showSpeed = false }) {
+                                PlaybackSpeed.entries.forEach { speed ->
+                                    DropdownMenuItem(
+                                        text = { Text(if (speed == state.playerState.playbackSpeed) "✓ ${speed.label}" else speed.label) },
+                                        onClick = { showSpeed = false; viewModel.setSpeed(speed) },
+                                    )
+                                }
+                            }
                         }
                         if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) TextButton(
                             onClick = {

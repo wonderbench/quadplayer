@@ -109,6 +109,8 @@
     <string name="settings_about_software_subtitle">QuadPlayer 功能与使用说明</string>
 
     <string name="player_title">播放器</string>
+    <string name="player_more">更多播放选项</string>
+    <string name="player_current_speed">播放倍速：%1$s</string>
     <string name="player_audio">音轨</string>
     <string name="player_subtitle">字幕</string>
     <string name="player_aspect">画面比例</string>
