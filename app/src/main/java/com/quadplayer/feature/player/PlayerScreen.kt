@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -41,6 +42,7 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.AlertDialog
 import com.quadplayer.ui.theme.DepthChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import com.quadplayer.ui.theme.RoundIconButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -83,6 +85,7 @@ import com.quadplayer.core.model.PlaybackSpeed
 import com.quadplayer.core.util.formatDuration
 import com.quadplayer.core.ui.ImmersiveFullscreen
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 @Composable
 fun PlayerScreen(
@@ -144,9 +147,13 @@ fun PlayerScreen(
 
     DisposableEffect(activity) {
         val originalOrientation = activity?.requestedOrientation
+        val originalBrightness = activity?.window?.attributes?.screenBrightness
         onDispose {
             if (activity != null && originalOrientation != null) {
                 activity.requestedOrientation = originalOrientation
+            }
+            if (activity != null && originalBrightness != null) {
+                activity.window.attributes = activity.window.attributes.apply { screenBrightness = originalBrightness }
             }
         }
     }
@@ -577,6 +584,11 @@ private fun GestureOverlay(
         context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     }
     val activity = context as? Activity
+    var indicator by remember { mutableStateOf<Pair<Boolean, Float>?>(null) }
+    var indicatorVersion by remember { mutableIntStateOf(0) }
+    LaunchedEffect(indicatorVersion) {
+        if (indicator != null) { delay(1200); indicator = null }
+    }
 
     Box(
         modifier = modifier
@@ -594,10 +606,15 @@ private fun GestureOverlay(
                     onLongPress = { onLongPress() },
                 )
             }
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { change, dragAmount ->
+            .pointerInput(activity, audioManager) {
+                var adjustingBrightness = false
+                var volume = 0f
+                detectVerticalDragGestures(onDragStart = { offset ->
+                    adjustingBrightness = offset.x < size.width / 2f
+                    volume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat()
+                }) { change, dragAmount ->
                     val delta = -dragAmount / size.height
-                    if (change.position.x < size.width / 2f) {
+                    if (adjustingBrightness) {
                         val window = activity?.window ?: return@detectVerticalDragGestures
                         val current = if (window.attributes.screenBrightness < 0f) {
                             0.5f
@@ -607,16 +624,32 @@ private fun GestureOverlay(
                         window.attributes = window.attributes.apply {
                             screenBrightness = (current + delta).coerceIn(0.05f, 1f)
                         }
+                        indicator = true to window.attributes.screenBrightness
                     } else {
                         val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
-                        val current = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                        val target = (current + delta * max).toInt().coerceIn(0, max)
+                        volume = accumulateVolume(volume, delta, max)
+                        val target = volume.roundToInt().coerceIn(0, max)
                         audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, target, 0)
+                        indicator = false to (volume / max)
                     }
+                    indicatorVersion++
+                    change.consume()
                 }
             },
-    )
+    ) {
+        indicator?.let { (brightness, level) ->
+            Surface(modifier = Modifier.align(Alignment.Center), tonalElevation = 6.dp, shape = MaterialTheme.shapes.medium) {
+                Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+                    Text(stringResource(if (brightness) R.string.player_brightness else R.string.player_volume))
+                    LinearProgressIndicator(progress = { level }, modifier = Modifier.width(140.dp))
+                }
+            }
+        }
+    }
 }
+
+internal fun accumulateVolume(current: Float, delta: Float, max: Int): Float =
+    (current + delta * max).coerceIn(0f, max.toFloat())
 
 @Composable
 private fun TrackDialog(
