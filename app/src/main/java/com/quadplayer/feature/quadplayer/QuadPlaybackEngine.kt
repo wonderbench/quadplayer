@@ -30,6 +30,7 @@ data class QuadSlotUiState(
     val failure: PlaybackFailure? = null,
     val playWhenReady: Boolean = false,
     val playbackEnded: Boolean = false,
+    val repeatOne: Boolean = false,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -59,6 +60,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
                         durationMs = state.durationMs, errorMessage = state.errorMessage, failure = state.failure,
                         playWhenReady = state.playWhenReady,
                         playbackEnded = state.playbackState == PlaybackState.ENDED,
+                        repeatOne = state.repeatOne,
                     )
                 }
             }
@@ -188,6 +190,11 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
 
     fun setSlotSpeed(slotIndex: Int, speed: PlaybackSpeed) {
         slots[slotIndex].value.controller?.setPlaybackSpeed(speed)
+    }
+
+    fun setSlotRepeat(slotIndex: Int, enabled: Boolean) {
+        slots[slotIndex].value.controller?.player?.repeatMode =
+            if (enabled) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
     }
 
     fun syncToPosition(positionMs: Long) {

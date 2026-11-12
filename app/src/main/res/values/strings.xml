@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="quad_repeat_video">循环播放此视频</string>
     <string name="app_name">QuadPlayer</string>
 
     <string name="nav_home">首页</string>
