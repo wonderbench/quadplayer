@@ -65,7 +65,7 @@ class QuadPlaybackEngine(private val context: Context) {
 
     suspend fun load(slotIndex: Int, video: VideoFile) {
         val old = slots[slotIndex].value.controller
-        val controller = old ?: PlayerController(context).also {
+        val controller = old ?: PlayerController(context, compactLocalBuffer = true).also {
             it.applySettings(settings)
             globalSpeed?.let(it::setPlaybackSpeed)
             it.player.volume = volumes[slotIndex]
