@@ -64,6 +64,7 @@ class QuadPlayerViewModel @Inject constructor(
     private var sessionReady = false
     private var restoring = false
     private var released = false
+    private val importGenerations = LongArray(4)
     private val volumeTargets = List(4) { QuadVolumeTarget(engine, it) }
 
     private val baseUiState = combine(
@@ -178,16 +179,17 @@ class QuadPlayerViewModel @Inject constructor(
     }
 
     fun addVideo(slotIndex: Int, uri: Uri) {
+        val request = ++importGenerations[slotIndex]
         viewModelScope.launch {
             try {
                 val video = videoRepository.importVideo(uri)
+                if (request != importGenerations[slotIndex]) return@launch
                 if (video == null) {
                     warningMessage.value = context.getString(R.string.quad_import_failed, slotIndex + 1)
                     return@launch
                 }
-                if (audioFocus.active && !requestAudioFocus()) return@launch
-                engine.allowPlayback()
-                loadAndInspect(slotIndex, video)
+                if (!engine.isInterrupted() && audioFocus.active && !requestAudioFocus()) return@launch
+                if (!loadAndInspect(slotIndex, video) || request != importGenerations[slotIndex]) return@launch
                 val settings = uiState.value.settings
                 if (audioSourceManager.currentAudioSource.value == -1) {
                     audioSourceManager.switchTo(slotIndex, volumeTargets, settings.crossfadeAudioSwitching)
@@ -200,8 +202,8 @@ class QuadPlayerViewModel @Inject constructor(
         }
     }
 
-    private suspend fun loadAndInspect(slotIndex: Int, video: com.quadplayer.core.model.VideoFile) {
-        engine.load(slotIndex, video)
+    private suspend fun loadAndInspect(slotIndex: Int, video: com.quadplayer.core.model.VideoFile): Boolean {
+        if (!engine.load(slotIndex, video)) return false
         viewModelScope.launch {
             val warning = withContext(Dispatchers.IO) { capabilityChecker.inspectVideo(video.uri) }
             if (engine.snapshot().getOrNull(slotIndex)?.uri == video.uriString) {
@@ -212,14 +214,14 @@ class QuadPlayerViewModel @Inject constructor(
                 }
             }
         }
+        return true
     }
 
     fun removeSlot(slotIndex: Int) {
-        viewModelScope.launch {
-            engine.remove(slotIndex)
-            if (audioSourceManager.currentAudioSource.value == slotIndex) {
-                audioSourceManager.muteAll(volumeTargets)
-            }
+        importGenerations[slotIndex]++
+        engine.remove(slotIndex)
+        if (audioSourceManager.currentAudioSource.value == slotIndex) {
+            audioSourceManager.muteAll(volumeTargets)
         }
     }
 
@@ -286,17 +288,17 @@ class QuadPlayerViewModel @Inject constructor(
 
     fun completeSwap(targetIndex: Int) {
         val sourceIndex = pendingSwapSource.value ?: return
+        importGenerations[sourceIndex]++
+        importGenerations[targetIndex]++
         pendingSwapSource.value = null
-        viewModelScope.launch {
-            engine.swap(sourceIndex, targetIndex)
-            val audioIndex = audioSourceManager.currentAudioSource.value
-            val movedAudio = when (audioIndex) {
-                sourceIndex -> targetIndex
-                targetIndex -> sourceIndex
-                else -> audioIndex
-            }
-            if (movedAudio != audioIndex) audioSourceManager.switchTo(movedAudio, volumeTargets, false)
+        engine.swap(sourceIndex, targetIndex)
+        val audioIndex = audioSourceManager.currentAudioSource.value
+        val movedAudio = when (audioIndex) {
+            sourceIndex -> targetIndex
+            targetIndex -> sourceIndex
+            else -> audioIndex
         }
+        if (movedAudio != audioIndex) audioSourceManager.switchTo(movedAudio, volumeTargets, false)
     }
 
     fun hideRecovery() { if (!restoring) recoveryPrompt.value = recoveryPrompt.value.hide() }
@@ -326,7 +328,7 @@ class QuadPlayerViewModel @Inject constructor(
                             if (!canReadMedia(context, uri)) { failed = true; return@forEachIndexed }
                             val video = videoRepository.importVideo(uri)
                             if (video == null) { failed = true; return@forEachIndexed }
-                            loadAndInspect(index, video)
+                            if (!loadAndInspect(index, video)) { failed = true; return@forEachIndexed }
                             engine.seekSlot(index, slot.positionMs)
                             engine.setSlotSpeed(index, PlaybackSpeed.fromValue(slot.speed))
                             engine.setSlotPlaying(index, slot.playing)

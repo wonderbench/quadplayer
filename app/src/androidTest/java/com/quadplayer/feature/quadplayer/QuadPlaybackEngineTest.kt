@@ -12,6 +12,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
 import androidx.media3.common.Player
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -21,6 +25,36 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class QuadPlaybackEngineTest {
+    @Test fun removingOrReplacingWhileLoadSuspendsNeverRestoresStaleSlot() = runBlocking(Dispatchers.Main) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = File(context.cacheDir, "quad-stale-load.wav").apply { writeBytes(ByteArray(44)) }
+        fun video(id: Long) = VideoFile(id, Uri.fromFile(file).toString(), "test$id", "test", "test", 5000, file.length(), 0, 0, "audio/wav", 0, false, true)
+        var entered = CompletableDeferred<Unit>()
+        var resume = CompletableDeferred<Unit>()
+        val engine = QuadPlaybackEngine(context) { candidate ->
+            if (candidate.id == 2L || candidate.id == 3L) { entered.complete(Unit); resume.await() }
+        }
+        try {
+            engine.load(0, video(1))
+            val removedLoad = async { engine.load(0, video(2)) }
+            entered.await()
+            engine.remove(0)
+            resume.complete(Unit)
+            assertFalse(removedLoad.await())
+            assertFalse(engine.hasController(0))
+
+            engine.load(0, video(1))
+            entered = CompletableDeferred()
+            resume = CompletableDeferred()
+            val staleLoad = async { engine.load(0, video(3)) }
+            entered.await()
+            assertTrue(engine.load(0, video(4)))
+            resume.complete(Unit)
+            assertFalse(staleLoad.await())
+            assertEquals(4L, engine.slotStates(flowOf(-1)).first()[0].video?.id)
+        } finally { engine.release(); file.delete() }
+    }
+
     @Test fun backgroundPausesAndRestoresOnlyPriorPlayIntentsIncludingLateImports() = runBlocking(Dispatchers.Main) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val file = File(context.cacheDir, "quad-lifecycle-test.wav").apply { writeBytes(ByteArray(44)) }
