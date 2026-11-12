@@ -10,6 +10,9 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
+import androidx.media3.common.Player
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -39,6 +42,14 @@ class QuadPlaybackEngineTest {
             assertFalse(engine.controllerAt(1).player.playWhenReady)
             assertEquals(2000L, engine.controllerAt(0).player.currentPosition)
             assertEquals(1000L, engine.controllerAt(1).player.currentPosition)
+            engine.controllerAt(1).seekTo(5000)
+            engine.controllerAt(1).play()
+            withTimeout(10000) {
+                while (engine.controllerAt(1).player.playbackState != Player.STATE_ENDED) delay(50)
+            }
+            engine.toggleSlot(1)
+            assertTrue(engine.controllerAt(1).player.playWhenReady)
+            assertTrue(engine.controllerAt(1).player.currentPosition < 5000)
             engine.remove(0)
             engine.togglePlayAll()
             assertEquals(0, engine.controllerAt(0).player.mediaItemCount)

@@ -1,8 +1,10 @@
 package com.quadplayer.feature.quadplayer
 
 import android.content.Context
+import androidx.media3.common.Player
 import com.quadplayer.core.model.AppSettings
 import com.quadplayer.core.model.PlaybackSpeed
+import com.quadplayer.core.model.PlaybackState
 import com.quadplayer.core.model.VideoFile
 import com.quadplayer.feature.player.PlayerController
 import kotlinx.coroutines.flow.Flow
@@ -17,6 +19,8 @@ data class QuadSlotUiState(
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val errorMessage: String? = null,
+    val playWhenReady: Boolean = false,
+    val playbackEnded: Boolean = false,
 )
 
 class QuadPlaybackEngine(
@@ -45,6 +49,8 @@ class QuadPlaybackEngine(
                     positionMs = state.currentPositionMs,
                     durationMs = state.durationMs,
                     errorMessage = state.errorMessage,
+                    playWhenReady = state.playWhenReady,
+                    playbackEnded = state.playbackState == PlaybackState.ENDED,
                 )
             }
         }
@@ -96,7 +102,10 @@ class QuadPlaybackEngine(
     fun toggleSlot(slotIndex: Int) {
         if (slotVideos[slotIndex] == null) return
         val player = controllers[slotIndex].player
-        if (player.playWhenReady) player.pause() else player.play()
+        if (player.playbackState == Player.STATE_ENDED) {
+            player.seekToDefaultPosition()
+            player.play()
+        } else if (shouldPauseOnToggle(player.playWhenReady, ended = false)) player.pause() else player.play()
     }
 
     fun setSlotSpeed(slotIndex: Int, speed: PlaybackSpeed) {
@@ -140,3 +149,5 @@ class QuadVolumeTarget(
         controller.player.volume = volume
     }
 }
+
+internal fun shouldPauseOnToggle(playWhenReady: Boolean, ended: Boolean): Boolean = playWhenReady && !ended
