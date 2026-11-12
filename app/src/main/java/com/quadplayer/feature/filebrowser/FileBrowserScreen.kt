@@ -20,14 +20,15 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
+import com.quadplayer.ui.theme.DepthChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
+import com.quadplayer.ui.theme.TrackDivider
+import com.quadplayer.ui.theme.DepthCard
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.quadplayer.ui.theme.RoundIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
+import com.quadplayer.ui.theme.QuietTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -93,7 +94,7 @@ fun FileBrowserScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
-            IconButton(onClick = viewModel::refresh) {
+            RoundIconButton(onClick = viewModel::refresh) {
                 Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.common_refresh))
             }
         }
@@ -111,14 +112,14 @@ fun FileBrowserScreen(
                 onClick = { showFolderPicker = true },
                 modifier = Modifier.weight(1f),
             )
-            AssistChip(
+            DepthChip(
                 onClick = viewModel::createPlaylistFromCurrentView,
                 enabled = uiState.videos.isNotEmpty(),
                 label = { Text(stringResource(R.string.folders_generate_playlist)) },
             )
         }
 
-        OutlinedTextField(
+        QuietTextField(
             value = uiState.videoQuery,
             onValueChange = viewModel::updateVideoQuery,
             modifier = Modifier.fillMaxWidth(),
@@ -152,7 +153,7 @@ fun FileBrowserScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             FileBrowserSortMode.entries.forEach { mode ->
-                AssistChip(
+                DepthChip(
                     onClick = { viewModel.setSortMode(mode) },
                     label = {
                         Text(
@@ -169,7 +170,7 @@ fun FileBrowserScreen(
             }
         }
 
-        HorizontalDivider()
+        TrackDivider()
 
         if (uiState.videos.isEmpty()) {
             EmptyBrowserText(
@@ -179,7 +180,8 @@ fun FileBrowserScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(bottom = 16.dp),
+                contentPadding = PaddingValues(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 items(uiState.videos, key = { it.id }) { video ->
                     VideoRow(
@@ -281,7 +283,7 @@ private fun FolderPickerSheet(
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.SemiBold,
         )
-        OutlinedTextField(
+        QuietTextField(
             value = uiState.folderQuery,
             onValueChange = onUpdateQuery,
             modifier = Modifier.fillMaxWidth(),
@@ -366,11 +368,9 @@ private fun VideoRow(
     onToggleFavorite: (Long) -> Unit,
     onAddToPlaylist: (VideoFile) -> Unit,
 ) {
+    DepthCard(onClick = { onOpenVideo(video.id) }, modifier = Modifier.fillMaxWidth()) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onOpenVideo(video.id) }
-            .padding(vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(
@@ -406,7 +406,7 @@ private fun VideoRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            IconButton(onClick = { onToggleFavorite(video.id) }) {
+            RoundIconButton(onClick = { onToggleFavorite(video.id) }) {
                 Icon(
                     imageVector = if (video.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
                     contentDescription = stringResource(R.string.home_tab_favorites),
@@ -419,7 +419,7 @@ private fun VideoRow(
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.clickable { onAddToPlaylist(video) },
         )
-        HorizontalDivider()
+    }
     }
 }
 
@@ -463,7 +463,7 @@ private fun PlaylistPickerDialog(
                         }
                     }
                 }
-                OutlinedTextField(
+                QuietTextField(
                     value = newPlaylistName,
                     onValueChange = { newPlaylistName = it },
                     label = { Text(stringResource(R.string.home_create_playlist)) },

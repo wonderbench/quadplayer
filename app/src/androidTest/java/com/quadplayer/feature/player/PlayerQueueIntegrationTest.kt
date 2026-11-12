@@ -72,15 +72,15 @@ class PlayerQueueIntegrationTest {
         val settings = DataStoreSettingsRepository(context)
         settings.setAutoResume(true)
         val store = ViewModelStore()
-        suspend fun createViewModel(target: ViewModelStore): PlayerViewModel = withContext(Dispatchers.Main) {
+        suspend fun createViewModel(target: ViewModelStore): PlaybackSession = withContext(Dispatchers.Main) {
             val factory = object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
-                override fun <T : ViewModel> create(modelClass: Class<T>): T = PlayerViewModel(
+                override fun <T : ViewModel> create(modelClass: Class<T>): T = PlaybackSession(
                     context, SavedStateHandle(mapOf("videoId" to 2L, "playlistId" to 1L)), videoRepo,
                     playlistRepo, historyQueue, settings,
                 ) as T
             }
-            ViewModelProvider(target, factory)[PlayerViewModel::class.java]
+            ViewModelProvider(target, factory)[PlaybackSession::class.java]
         }
         val vm = createViewModel(store)
         try {

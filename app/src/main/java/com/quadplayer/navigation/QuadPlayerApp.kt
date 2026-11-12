@@ -9,11 +9,17 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import com.quadplayer.ui.theme.RoundNavigationIcon
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
@@ -125,7 +131,11 @@ private fun QuadPlayerBottomBar(
     }
     if (!showBottomBar) return
 
-    NavigationBar {
+    NavigationBar(
+        modifier = Modifier.shadow(8.dp, RoundedCornerShape(topStart = 18.dp, topEnd = 18.dp), clip = false),
+        containerColor = androidx.compose.material3.MaterialTheme.colorScheme.surface,
+        tonalElevation = 0.dp,
+    ) {
         destinations.forEach { destination ->
             val selected = currentDestination?.hierarchy?.any { it.route == destination.screen.route } == true
             NavigationBarItem(
@@ -139,8 +149,15 @@ private fun QuadPlayerBottomBar(
                         restoreState = true
                     }
                 },
-                icon = destination.icon,
-                label = { Text(stringResource(destination.labelRes)) },
+                icon = { RoundNavigationIcon(selected) { destination.icon() } },
+                label = { Text(stringResource(destination.labelRes), maxLines = 1) },
+                colors = NavigationBarItemDefaults.colors(
+                    indicatorColor = Color.Transparent,
+                    selectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                    selectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
+                    unselectedIconColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                    unselectedTextColor = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
             )
         }
     }
