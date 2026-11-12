@@ -78,9 +78,15 @@ fun QuadPlayerScreen(
     BackHandler(enabled = state.layoutMode != LayoutMode.EQUAL_GRID) { viewModel.resetLayout() }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, viewModel) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) viewModel.saveSession() }
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> viewModel.onScreenStarted()
+                Lifecycle.Event.ON_STOP -> viewModel.onScreenStopped()
+                else -> Unit
+            }
+        }
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); viewModel.saveSession() }
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); viewModel.onScreenStopped() }
     }
     var pendingSlot by remember { mutableIntStateOf(-1) }
     var menuSlot by remember { mutableStateOf<Int?>(null) }

@@ -37,6 +37,8 @@ class QuadPlaybackEngine(private val context: Context) {
     private val volumes = MutableList(4) { 0f }
     private var settings = AppSettings()
     private var globalSpeed: PlaybackSpeed? = null
+    private var suspended = false
+    private val resumeIntents = mutableMapOf<PlayerController, Boolean>()
 
     fun controllerAt(index: Int): PlayerController? = slots[index].value.controller
     internal fun hasController(index: Int): Boolean = slots[index].value.controller != null
@@ -68,8 +70,10 @@ class QuadPlaybackEngine(private val context: Context) {
             it.player.volume = volumes[slotIndex]
         }
         try {
-            controller.load(video)
+            // Load paused so an import finishing after ON_STOP cannot start audio in the background.
+            controller.load(video, playWhenReady = false)
             slots[slotIndex].value = Slot(video, controller)
+            setSlotPlaying(slotIndex, true)
         } catch (error: Throwable) {
             if (old == null) controller.release()
             throw error
@@ -79,7 +83,34 @@ class QuadPlaybackEngine(private val context: Context) {
     fun remove(slotIndex: Int) {
         val controller = slots[slotIndex].value.controller
         slots[slotIndex].value = Slot()
+        resumeIntents.remove(controller)
         controller?.release()
+    }
+
+    fun suspendPlayback() {
+        if (suspended) return
+        suspended = true
+        slots.mapNotNull { it.value.controller }.forEach { controller ->
+            resumeIntents[controller] = controller.player.playWhenReady
+            controller.pause()
+        }
+    }
+
+    fun resumePlayback() {
+        if (!suspended) return
+        suspended = false
+        slots.mapNotNull { it.value.controller }.forEach { controller ->
+            if (resumeIntents[controller] == true) controller.play()
+        }
+        resumeIntents.clear()
+    }
+
+    fun setSlotPlaying(slotIndex: Int, playing: Boolean) {
+        val controller = slots[slotIndex].value.controller ?: return
+        if (suspended) {
+            resumeIntents[controller] = playing
+            controller.pause()
+        } else if (playing) controller.play() else controller.pause()
     }
 
     suspend fun swap(first: Int, second: Int) {
@@ -140,7 +171,7 @@ class QuadPlaybackEngine(private val context: Context) {
             video.uriString,
             controller.player.currentPosition.coerceAtLeast(0L),
             controller.player.playbackParameters.speed,
-            controller.player.playWhenReady,
+            if (suspended) resumeIntents[controller] ?: false else controller.player.playWhenReady,
         )
     }
 

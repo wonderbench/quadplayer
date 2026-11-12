@@ -123,7 +123,7 @@ class PlayerController(
         setPlaybackSpeed(settings.defaultPlaybackSpeed)
     }
 
-    suspend fun load(video: VideoFile, startPositionMs: Long = 0L) {
+    suspend fun load(video: VideoFile, startPositionMs: Long = 0L, playWhenReady: Boolean = true) {
         if (currentVideo?.uriString != video.uriString) {
             externalSubtitleUri = null
             externalAudioUri = null
@@ -138,7 +138,7 @@ class PlayerController(
             player.setMediaSource(source)
             player.prepare()
             player.seekTo(startPositionMs)
-            player.playWhenReady = true
+            player.playWhenReady = playWhenReady
         }
     }
 

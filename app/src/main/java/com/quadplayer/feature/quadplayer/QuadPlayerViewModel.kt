@@ -153,6 +153,13 @@ class QuadPlayerViewModel @Inject constructor(
 
     fun controllerAt(index: Int): PlayerController? = engine.controllerAt(index)
 
+    fun onScreenStopped() {
+        engine.suspendPlayback()
+        saveSession()
+    }
+
+    fun onScreenStarted() = engine.resumePlayback()
+
     fun addVideo(slotIndex: Int, uri: Uri) {
         viewModelScope.launch {
             val video = videoRepository.importVideo(uri) ?: return@launch
@@ -278,7 +285,7 @@ class QuadPlayerViewModel @Inject constructor(
                             loadAndInspect(index, video)
                             engine.seekSlot(index, slot.positionMs)
                             engine.setSlotSpeed(index, PlaybackSpeed.fromValue(slot.speed))
-                            if (!slot.playing) engine.controllerAt(index)?.pause()
+                            engine.setSlotPlaying(index, slot.playing)
                         } catch (cancelled: CancellationException) {
                             throw cancelled
                         } catch (_: Exception) { failed = true }
