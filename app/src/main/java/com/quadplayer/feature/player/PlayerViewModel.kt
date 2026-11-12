@@ -119,7 +119,9 @@ class PlayerViewModel @Inject constructor(
                 historySession.clear()
                 playerController.pause()
                 val settings = settingsRepository.settings.first()
-                val position = if (resume && settings.autoResume) historyWriteQueue.getResumePosition(nextVideo.id) else 0L
+                val position = if (resume && settings.autoResume) {
+                    normalizeResumePosition(historyWriteQueue.getResumePosition(nextVideo.id), nextVideo.durationMs)
+                } else 0L
                 playerController.load(nextVideo, position)
                 historySession.markLoaded(nextVideo.id)
                 video.value = nextVideo
@@ -215,7 +217,8 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun savePosition() {
-        historySession.capture(playerController.player.currentPosition)
+        val player = playerController.player
+        historySession.capture(if (player.playbackState == Player.STATE_ENDED) 0L else player.currentPosition)
     }
 
     override fun onCleared() {
