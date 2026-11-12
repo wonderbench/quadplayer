@@ -58,7 +58,15 @@ class QuadPlayerViewModel @Inject constructor(
     private val audioSourceManager = AudioSourceManager(viewModelScope)
     private val layoutManager = QuadLayoutManager()
     private val warningMessage = MutableStateFlow<String?>(null)
+    private val capabilityWarning = MutableStateFlow<String?>(null)
     private val performanceWarnings = MutableStateFlow<List<PerformanceWarning>>(emptyList())
+    private val queuedNotices = combine(capabilityWarning, performanceWarnings) { capability, performance ->
+        capability ?: when (performance.firstOrNull()) {
+            PerformanceWarning.LowMemory -> context.getString(R.string.quad_warning_low_memory)
+            PerformanceWarning.ThermalThrottle -> context.getString(R.string.quad_warning_thermal)
+            null -> null
+        }
+    }
     private val pendingSwapSource = MutableStateFlow<Int?>(null)
     private val recoveryPrompt = MutableStateFlow(RecoveryPrompt())
     private var sessionReady = false
@@ -83,16 +91,12 @@ class QuadPlayerViewModel @Inject constructor(
     val uiState: StateFlow<QuadPlayerUiState> = combine(
         baseUiState,
         warningMessage,
-        performanceWarnings,
+        queuedNotices,
         pendingSwapSource,
         recoveryPrompt,
-    ) { baseState, warning, queuedWarnings, pendingSwap, recovery ->
+    ) { baseState, warning, queuedNotice, pendingSwap, recovery ->
         baseState.copy(
-            warningMessage = warning ?: when (queuedWarnings.firstOrNull()) {
-                PerformanceWarning.LowMemory -> context.getString(R.string.quad_warning_low_memory)
-                PerformanceWarning.ThermalThrottle -> context.getString(R.string.quad_warning_thermal)
-                null -> null
-            },
+            warningMessage = warning ?: queuedNotice,
             pendingSwapSource = pendingSwap,
             offerRecovery = recovery.session != null && recovery.visible,
             recoveryAvailable = recovery.session != null && !recovery.visible && !recovery.busy,
@@ -106,13 +110,22 @@ class QuadPlayerViewModel @Inject constructor(
             }
         }
 
-        val capability = capabilityChecker.check()
-        if (capability.warning != null) {
-            warningMessage.value = context.getString(
-                R.string.quad_warning_capability,
-                capability.totalRamMb,
-                capability.maxConcurrentDecoders,
-            )
+        viewModelScope.launch {
+            val capability = try {
+                withContext(Dispatchers.IO) { capabilityChecker.check() }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                android.util.Log.w("QuadPlayerViewModel", "Device capability check failed", failure)
+                null
+            }
+            if (capability?.warning != null) {
+                capabilityWarning.value = context.getString(
+                    R.string.quad_warning_capability,
+                    capability.totalRamMb,
+                    capability.maxConcurrentDecoders,
+                )
+            }
         }
 
         performanceMonitor.start(context, viewModelScope)
@@ -366,6 +379,7 @@ class QuadPlayerViewModel @Inject constructor(
 
     fun clearWarning() {
         if (warningMessage.value != null) warningMessage.value = null
+        else if (capabilityWarning.value != null) capabilityWarning.value = null
         else performanceWarnings.value = performanceWarnings.value.drop(1)
     }
 
