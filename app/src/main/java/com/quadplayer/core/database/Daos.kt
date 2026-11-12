@@ -106,6 +106,9 @@ interface PlaylistDao {
     )
     fun observePlaylistVideos(playlistId: Long): Flow<List<VideoEntity>>
 
+    @Query("SELECT v.id FROM playlist_videos pv JOIN videos v ON v.id = pv.video_id WHERE pv.playlist_id = :playlistId AND v.is_accessible = 1")
+    suspend fun getVisibleVideoIds(playlistId: Long): List<Long>
+
     @Query("SELECT * FROM playlist_videos WHERE playlist_id = :playlistId ORDER BY sort_order ASC")
     suspend fun getPlaylistEntries(playlistId: Long): List<PlaylistVideoEntity>
 
