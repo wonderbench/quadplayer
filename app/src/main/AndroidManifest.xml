@@ -11,6 +11,8 @@
 
     <application
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:name=".QuadPlayerApplication"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
