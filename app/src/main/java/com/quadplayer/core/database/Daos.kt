@@ -54,8 +54,11 @@ interface VideoDao {
     @Query("UPDATE videos SET is_favorite = :isFavorite WHERE id = :videoId")
     suspend fun setFavorite(videoId: Long, isFavorite: Boolean): Int
 
-    @Query("UPDATE videos SET is_accessible = 0 WHERE is_manually_added = 0")
-    suspend fun markScannedUnavailable()
+    @Query("SELECT * FROM videos")
+    suspend fun getAll(): List<VideoEntity>
+
+    @Query("UPDATE videos SET is_accessible = 0 WHERE id IN (:ids)")
+    suspend fun markUnavailable(ids: List<Long>)
 }
 
 @Dao
