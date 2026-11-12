@@ -91,7 +91,7 @@ fun QuadPlayerApp() {
             }
             composable(
                 route = Screen.Player.route,
-                arguments = listOf(navArgument("videoId") { defaultValue = -1L }),
+                arguments = listOf(navArgument("videoId") { defaultValue = -1L }, navArgument("playlistId") { defaultValue = -1L }),
             ) {
                 val viewModel: PlayerViewModel = hiltViewModel()
                 PlayerScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
@@ -99,12 +99,13 @@ fun QuadPlayerApp() {
             composable(
                 route = Screen.Playlist.route,
                 arguments = listOf(navArgument("playlistId") { defaultValue = -1L }),
-            ) {
+            ) { entry ->
                 val viewModel: PlaylistViewModel = hiltViewModel()
+                val playlistId = entry.arguments?.getLong("playlistId") ?: -1L
                 PlaylistScreen(
                     viewModel = viewModel,
                     onBack = { navController.popBackStack() },
-                    onOpenVideo = { navController.navigate(Screen.Player.create(it)) },
+                    onOpenVideo = { navController.navigate(Screen.Player.create(it, playlistId)) },
                 )
             }
         }

@@ -111,7 +111,7 @@ class DefaultVideoRepository @Inject constructor(
     }
 
     override suspend fun getVideo(videoId: Long): VideoFile? = withContext(Dispatchers.IO) {
-        videoDao.getById(videoId)?.toModel()
+        videoDao.getById(videoId)?.takeIf { it.isAccessible }?.toModel()
     }
 
     override suspend fun toggleFavorite(videoId: Long) = withContext(Dispatchers.IO) {

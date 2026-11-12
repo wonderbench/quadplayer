@@ -63,5 +63,6 @@ class HistoryWriteQueue internal constructor(
 internal class PlaybackHistorySession(private val queue: HistoryWriteQueue) {
     private var loadedVideoId: Long? = null
     fun markLoaded(videoId: Long) { loadedVideoId = videoId }
+    fun clear() { loadedVideoId = null }
     fun capture(positionMs: Long) { loadedVideoId?.let { queue.enqueue(it, positionMs) } }
 }

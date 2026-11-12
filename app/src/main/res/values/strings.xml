@@ -108,6 +108,10 @@
     <string name="player_switch_portrait">竖屏</string>
     <string name="player_seek_forward">快进 %1$d 秒</string>
     <string name="media_partial_access">仅显示已授权视频 · 管理选择</string>
+    <string name="player_previous">上一条</string>
+    <string name="player_next">下一条</string>
+    <string name="player_repeat_one_on">单曲循环：开</string>
+    <string name="player_repeat_one_off">单曲循环：关</string>
     <string name="player_retry">重试</string>
     <string name="player_error_failed">播放失败</string>
     <string name="player_video_not_found">未找到该视频</string>

@@ -5,8 +5,8 @@ sealed class Screen(val route: String) {
     data object Folders : Screen("folders")
     data object Quad : Screen("quad")
     data object Settings : Screen("settings")
-    data object Player : Screen("player/{videoId}") {
-        fun create(videoId: Long): String = "player/$videoId"
+    data object Player : Screen("player/{videoId}?playlistId={playlistId}") {
+        fun create(videoId: Long, playlistId: Long = -1L): String = "player/$videoId?playlistId=$playlistId"
     }
     data object Playlist : Screen("playlist/{playlistId}") {
         fun create(playlistId: Long): String = "playlist/$playlistId"
