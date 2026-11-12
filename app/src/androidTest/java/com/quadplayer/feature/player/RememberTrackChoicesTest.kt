@@ -39,19 +39,22 @@ class RememberTrackChoicesTest {
         external.writeBytes(original.readBytes())
         val video = VideoFile(1, Uri.fromFile(original).toString(), original.name, "test", "test", 3000, original.length(), 0, 0, "audio/wav", 0, false, true, null)
         val first = PlayerController(context, rememberTrackChoices = true)
+        var selectedIndex = -1
         try {
             first.load(video, playWhenReady = false)
             first.setExternalAudio(Uri.fromFile(external))
             withTimeout(10000) { while (first.uiState.value.availableAudioTracks.size < 2) delay(25) }
-            val option = first.uiState.value.availableAudioTracks.last()
+            selectedIndex = first.uiState.value.availableAudioTracks.indexOfFirst { !it.selected }
+            assertTrue(selectedIndex >= 0)
+            val option = first.uiState.value.availableAudioTracks[selectedIndex]
             first.selectAudioTrack(option)
-            withTimeout(10000) { while (!first.uiState.value.availableAudioTracks.last().selected) delay(25) }
+            withTimeout(10000) { while (!first.uiState.value.availableAudioTracks[selectedIndex].selected) delay(25) }
         } finally { first.release() }
         val restored = PlayerController(context, rememberTrackChoices = true)
         try {
             restored.load(video, playWhenReady = false)
             withTimeout(10000) { while (restored.uiState.value.availableAudioTracks.size < 2) delay(25) }
-            withTimeout(10000) { while (!restored.uiState.value.availableAudioTracks.last().selected) delay(25) }
+            withTimeout(10000) { while (!restored.uiState.value.availableAudioTracks[selectedIndex].selected) delay(25) }
         } finally { restored.release(); original.delete(); external.delete() }
     }
 
