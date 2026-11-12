@@ -2,11 +2,34 @@ package com.quadplayer.feature.filebrowser
 
 import com.quadplayer.core.model.FolderInfo
 import com.quadplayer.core.model.VideoFile
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FileBrowserViewModelTest {
+
+    @Test
+    fun nameSortUsesNaturalNumbersWithoutIntegerOverflow() {
+        val names = listOf("第10集", "第2集", "第100000000000000000000集", "第02集", "第1集")
+        val result = filterAndSortVideos(
+            videos = names.mapIndexed { index, name -> testVideo(index.toLong(), "/a", name) },
+            selectedFolderPath = "/a", query = "", sortMode = FileBrowserSortMode.NAME, locale = Locale.CHINA,
+        )
+        assertEquals(listOf("第1集", "第2集", "第02集", "第10集", "第100000000000000000000集"), result.map { it.displayName })
+    }
+
+    @Test
+    fun nameSortUsesChineseCollationAndIgnoresCase() {
+        val names = listOf("张三", "阿明", "李四", "zoo", "Alpha")
+        val result = filterAndSortVideos(
+            videos = names.mapIndexed { index, name -> testVideo(index.toLong(), "/a", name) },
+            selectedFolderPath = "/a", query = "", sortMode = FileBrowserSortMode.NAME, locale = Locale.CHINA,
+        ).map { it.displayName }
+        assertTrue(result.indexOf("阿明") < result.indexOf("李四"))
+        assertTrue(result.indexOf("李四") < result.indexOf("张三"))
+        assertTrue(result.indexOf("Alpha") < result.indexOf("zoo"))
+    }
 
     @Test
     fun filterFolders_matchesFolderNameAndPathIgnoringCase() {
