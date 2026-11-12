@@ -43,6 +43,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -92,6 +94,8 @@ fun QuadPlayerScreen(
     var controlsInteractionVersion by remember { mutableIntStateOf(0) }
     var progressVisibleSlot by remember { mutableIntStateOf(-1) }
     var progressInteractionVersion by remember { mutableIntStateOf(0) }
+    var bottomOverlayHeight by remember { mutableIntStateOf(0) }
+    val progressBottomInset = if (controlsVisible) with(LocalDensity.current) { bottomOverlayHeight.toDp() } else 0.dp
 
     val hasPlayingVideo = state.slots.any { it.isPlaying }
 
@@ -137,6 +141,7 @@ fun QuadPlayerScreen(
             modifier = Modifier.fillMaxSize(),
             state = state,
             viewModel = viewModel,
+            progressBottomInset = progressBottomInset,
             onAddVideo = { slotIndex ->
                 pendingSlot = slotIndex
                 picker.launch(arrayOf("video/*"))
@@ -197,6 +202,7 @@ fun QuadPlayerScreen(
             BottomOverlay(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
+                    .onSizeChanged { bottomOverlayHeight = it.height }
                     .padding(8.dp),
                 viewModel = viewModel,
                 onInteraction = { controlsInteractionVersion += 1 },
@@ -397,6 +403,7 @@ private fun QuadGrid(
     modifier: Modifier,
     state: QuadPlayerUiState,
     viewModel: QuadPlayerViewModel,
+    progressBottomInset: Dp,
     onAddVideo: (Int) -> Unit,
     onOpenMenu: (Int) -> Unit,
     onSwitchAudio: (Int) -> Unit,
@@ -405,9 +412,9 @@ private fun QuadGrid(
     visibleProgressSlot: Int,
 ) {
     @Composable
-    fun Slot(index: Int, slotModifier: Modifier, audioTopInset: Dp = 4.dp) {
+    fun Slot(index: Int, slotModifier: Modifier, audioTopInset: Dp = 4.dp, bottomInset: Dp = 0.dp) {
         QuadSlotContent(slotModifier, state.slots[index], viewModel, onAddVideo, onOpenMenu,
-            onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == index, audioTopInset)
+            onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == index, audioTopInset, bottomInset)
     }
     when (state.layoutMode) {
         LayoutMode.EQUAL_GRID -> Column(modifier = modifier) {
@@ -415,19 +422,20 @@ private fun QuadGrid(
                 Slot(0, Modifier.weight(1f)); Slot(1, Modifier.weight(1f))
             }
             Row(Modifier.weight(1f)) {
-                Slot(2, Modifier.weight(1f)); Slot(3, Modifier.weight(1f))
+                Slot(2, Modifier.weight(1f), bottomInset = progressBottomInset)
+                Slot(3, Modifier.weight(1f), bottomInset = progressBottomInset)
             }
         }
         LayoutMode.FOCUS_GRID -> Row(modifier = modifier) {
-            Slot(state.focusedSlot, Modifier.weight(3f).fillMaxHeight())
+            Slot(state.focusedSlot, Modifier.weight(3f).fillMaxHeight(), bottomInset = progressBottomInset)
             Column(Modifier.weight(1f).fillMaxHeight()) {
-                (0..3).filter { it != state.focusedSlot }.forEach { index ->
-                    Slot(index, Modifier.weight(1f).fillMaxWidth())
+                (0..3).filter { it != state.focusedSlot }.forEachIndexed { position, index ->
+                    Slot(index, Modifier.weight(1f).fillMaxWidth(), bottomInset = if (position == 2) progressBottomInset else 0.dp)
                 }
             }
         }
         LayoutMode.SINGLE -> Box(modifier = modifier) {
-            Slot(state.focusedSlot, Modifier.fillMaxSize(), audioTopInset = 60.dp)
+            Slot(state.focusedSlot, Modifier.fillMaxSize(), audioTopInset = 60.dp, bottomInset = progressBottomInset)
         }
     }
 }
@@ -444,6 +452,7 @@ private fun QuadSlotContent(
     onSeek: (Int, Long) -> Unit,
     progressVisible: Boolean,
     audioTopInset: Dp,
+    progressBottomInset: Dp,
 ) {
     var isSeeking by remember(slot.index) { mutableStateOf(false) }
     var sliderPosition by remember(slot.index) {
@@ -556,6 +565,7 @@ private fun QuadSlotContent(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
+                            .padding(bottom = progressBottomInset)
                             .padding(horizontal = 4.dp, vertical = 2.dp),
                         value = sliderPosition.toFloat(),
                         onValueChange = {
