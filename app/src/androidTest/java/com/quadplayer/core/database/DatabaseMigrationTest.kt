@@ -77,7 +77,10 @@ class DatabaseMigrationTest {
             history.deleteByVideoId(1)
             assertEquals(null, history.getByVideoId(1))
             assertEquals(25L, history.getByVideoId(2)?.lastPositionMs)
+            dao.markUnavailable(listOf(2))
+            assertTrue(history.observeRecent(100).first().isEmpty())
             history.clear()
+            dao.upsert(dao.getById(2)!!.copy(isAccessible = true))
             assertEquals(null, history.getByVideoId(2))
             assertTrue(dao.getById(1)!!.isFavorite)
         } finally { db.close() }
