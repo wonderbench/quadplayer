@@ -15,6 +15,7 @@ import com.quadplayer.core.model.PlaybackSpeed
 import com.quadplayer.core.util.DeviceCapabilityChecker
 import com.quadplayer.core.util.PerformanceMonitor
 import com.quadplayer.core.util.PerformanceWarning
+import com.quadplayer.core.util.enqueueWarning
 import com.quadplayer.core.util.VideoCapabilityWarning
 import com.quadplayer.feature.player.PlayerController
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -56,6 +57,7 @@ class QuadPlayerViewModel @Inject constructor(
     private val audioSourceManager = AudioSourceManager(viewModelScope)
     private val layoutManager = QuadLayoutManager()
     private val warningMessage = MutableStateFlow<String?>(null)
+    private val performanceWarnings = MutableStateFlow<List<PerformanceWarning>>(emptyList())
     private val pendingSwapSource = MutableStateFlow<Int?>(null)
     private val recoveryPrompt = MutableStateFlow(RecoveryPrompt())
     private var sessionReady = false
@@ -79,11 +81,16 @@ class QuadPlayerViewModel @Inject constructor(
     val uiState: StateFlow<QuadPlayerUiState> = combine(
         baseUiState,
         warningMessage,
+        performanceWarnings,
         pendingSwapSource,
         recoveryPrompt,
-    ) { baseState, warning, pendingSwap, recovery ->
+    ) { baseState, warning, queuedWarnings, pendingSwap, recovery ->
         baseState.copy(
-            warningMessage = warning,
+            warningMessage = warning ?: when (queuedWarnings.firstOrNull()) {
+                PerformanceWarning.LowMemory -> context.getString(R.string.quad_warning_low_memory)
+                PerformanceWarning.ThermalThrottle -> context.getString(R.string.quad_warning_thermal)
+                null -> null
+            },
             pendingSwapSource = pendingSwap,
             offerRecovery = recovery.session != null && recovery.visible,
             recoveryAvailable = recovery.session != null && !recovery.visible && !recovery.busy,
@@ -109,10 +116,7 @@ class QuadPlayerViewModel @Inject constructor(
         performanceMonitor.start(context, viewModelScope)
         viewModelScope.launch {
             performanceMonitor.warnings.collect { warning ->
-                warningMessage.value = when (warning) {
-                    PerformanceWarning.LowMemory -> context.getString(R.string.quad_warning_low_memory)
-                    PerformanceWarning.ThermalThrottle -> context.getString(R.string.quad_warning_thermal)
-                }
+                performanceWarnings.value = enqueueWarning(performanceWarnings.value, warning)
             }
         }
 
@@ -328,7 +332,8 @@ class QuadPlayerViewModel @Inject constructor(
     }
 
     fun clearWarning() {
-        warningMessage.value = null
+        if (warningMessage.value != null) warningMessage.value = null
+        else performanceWarnings.value = performanceWarnings.value.drop(1)
     }
 
     override fun onCleared() {
