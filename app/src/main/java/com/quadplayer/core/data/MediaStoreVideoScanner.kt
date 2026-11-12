@@ -6,6 +6,7 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
+import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import com.quadplayer.core.database.VideoEntity
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -18,6 +19,32 @@ import javax.inject.Singleton
 class MediaStoreVideoScanner @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
+    /** Only normalize when the underlying document grant is persisted and the mapped URI remains readable. */
+    fun persistedMediaUri(uri: Uri): Uri? {
+        if (Build.VERSION.SDK_INT < 29 || !DocumentsContract.isDocumentUri(context, uri)) return null
+        val resolver = context.contentResolver
+        if (resolver.persistedUriPermissions.none { it.uri == uri && it.isReadPermission }) return null
+        return mappedReadableVideoUri(uri)
+    }
+
+    fun persistedMediaUris(): Set<String> {
+        if (Build.VERSION.SDK_INT < 29) return emptySet()
+        return context.contentResolver.persistedUriPermissions.asSequence()
+            .filter { it.isReadPermission }
+            .mapNotNull { mappedReadableVideoUri(it.uri)?.toString() }
+            .toSet()
+    }
+
+    private fun mappedReadableVideoUri(uri: Uri): Uri? {
+        if (Build.VERSION.SDK_INT < 29 || !DocumentsContract.isDocumentUri(context, uri)) return null
+        return runCatching {
+            val mapped = MediaStore.getMediaUri(context, uri) ?: return@runCatching null
+            if (mapped.authority != MediaStore.AUTHORITY || !mapped.path.orEmpty().contains("/video/media/")) return@runCatching null
+            val readable = context.contentResolver.openFileDescriptor(mapped, "r")?.use { true } ?: false
+            mapped.takeIf { readable }
+        }.getOrNull()
+    }
+
     suspend fun scanVideos(): List<VideoEntity> = withContext(Dispatchers.IO) {
         val projection = buildList {
             add(MediaStore.Video.Media._ID)

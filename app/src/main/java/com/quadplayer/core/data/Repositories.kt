@@ -93,23 +93,30 @@ class DefaultVideoRepository @Inject constructor(
             Log.w("VideoRepository", "MediaStore scan failed; retaining cached videos", failure)
             return
         }
+        val authorizedUris = withContext(Dispatchers.IO) { scanner.persistedMediaUris() }
         database.withTransaction {
-            val changes = calculateScanChanges(videoDao.getAll(), scanned)
+            val changes = calculateScanChanges(videoDao.getAll(), scanned, authorizedUris)
             changes.hideIds.chunked(500).forEach { videoDao.markUnavailable(it) }
             if (changes.upserts.isNotEmpty()) videoDao.upsertAll(changes.upserts)
         }
     }
 
     override suspend fun importVideo(uri: Uri): VideoFile? = withContext(Dispatchers.IO) {
-        val imported = scanner.inspectImportedVideo(uri) ?: return@withContext null
+        val imported = scanner.inspectImportedVideo(uri) ?: run {
+            // Re-establish the MediaStore equivalent of a retained document grant after restart.
+            if (uri.authority != android.provider.MediaStore.AUTHORITY || uri.toString() !in scanner.persistedMediaUris()) return@withContext null
+            scanner.inspectImportedVideo(uri) ?: return@withContext null
+        }
+        val mediaUri = scanner.persistedMediaUri(uri)
+        val normalized = if (mediaUri != null) imported.copy(uriString = mediaUri.toString(), isManuallyAdded = false) else imported
         database.withTransaction {
-            val existing = videoDao.getByUriString(uri.toString())
+            val existing = videoDao.getByUriString(normalized.uriString)
             if (existing != null) {
                 if (!existing.isAccessible) videoDao.markAvailable(existing.id)
                 existing.copy(isAccessible = true).toModel()
             } else {
-                val id = videoDao.upsert(imported)
-                (videoDao.getById(id) ?: imported.copy(id = id)).toModel()
+                val id = videoDao.upsert(normalized)
+                (videoDao.getById(id) ?: normalized.copy(id = id)).toModel()
             }
         }
     }

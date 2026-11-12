@@ -21,4 +21,10 @@ class ScanChangesTest {
         assertEquals(listOf(old.copy(isAccessible = true)), changes.upserts)
         assertEquals(emptyList<Long>(), changes.hideIds)
     }
+
+    @Test fun persistedAccessKeepsUnscannedMediaVisibleUntilGrantIsLost() {
+        val existing = listOf(video(1, "granted"), video(2, "revoked"))
+        assertEquals(listOf(2L), calculateScanChanges(existing, emptyList(), setOf("granted")).hideIds)
+        assertEquals(listOf(1L, 2L), calculateScanChanges(existing, emptyList()).hideIds)
+    }
 }
