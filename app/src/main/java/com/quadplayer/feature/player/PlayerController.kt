@@ -146,6 +146,15 @@ class PlayerController(
         if (player.isPlaying) player.pause() else player.play()
     }
 
+    fun clear() {
+        currentVideo = null
+        externalSubtitleUri = null
+        externalAudioUri = null
+        player.stop()
+        player.clearMediaItems()
+        updateStateFromPlayer()
+    }
+
     fun play() = player.play()
 
     fun pause() = player.pause()

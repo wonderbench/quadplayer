@@ -1,6 +1,8 @@
 package com.quadplayer.core.data
 
 import android.net.Uri
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import androidx.room.withTransaction
 import com.quadplayer.core.database.PlayHistoryDao
 import com.quadplayer.core.database.PlayHistoryEntity
@@ -72,7 +74,14 @@ class DefaultVideoRepository @Inject constructor(
 
     override suspend fun refreshVideos() {
         withContext(Dispatchers.IO) {
-        val scanned = scanner.scanVideos()
+        val scanned = try {
+            scanner.scanVideos()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            Log.w("VideoRepository", "MediaStore scan failed; retaining cached videos", failure)
+            return@withContext
+        }
         database.withTransaction {
             videoDao.upsertAll(scanned)
             val uris = scanned.map { it.uriString }

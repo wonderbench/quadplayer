@@ -53,34 +53,35 @@ class QuadPlaybackEngine(
 
     fun remove(slotIndex: Int) {
         slotVideos[slotIndex] = null
-        controllers[slotIndex].pause()
-        controllers[slotIndex].seekTo(0)
+        controllers[slotIndex].clear()
     }
 
     suspend fun swap(first: Int, second: Int) {
         if (first == second) return
-
         val firstVideo = slotVideos[first]
         val secondVideo = slotVideos[second]
+        val firstPosition = controllers[first].player.currentPosition
+        val secondPosition = controllers[second].player.currentPosition
+        val firstPlaying = controllers[first].player.playWhenReady
+        val secondPlaying = controllers[second].player.playWhenReady
+        controllers[first].clear()
+        controllers[second].clear()
         slotVideos[first] = secondVideo
         slotVideos[second] = firstVideo
-
         if (secondVideo != null) {
-            controllers[first].load(secondVideo)
-        } else {
-            controllers[first].pause()
+            controllers[first].load(secondVideo, secondPosition)
+            if (!secondPlaying) controllers[first].pause()
         }
-
         if (firstVideo != null) {
-            controllers[second].load(firstVideo)
-        } else {
-            controllers[second].pause()
+            controllers[second].load(firstVideo, firstPosition)
+            if (!firstPlaying) controllers[second].pause()
         }
     }
 
     fun togglePlayAll() {
-        val anyPlaying = controllers.any { it.player.isPlaying }
-        controllers.forEach { controller ->
+        val populated = controllers.filterIndexed { index, _ -> slotVideos[index] != null }
+        val anyPlaying = populated.any { it.player.playWhenReady }
+        populated.forEach { controller ->
             if (anyPlaying) controller.pause() else controller.play()
         }
     }

@@ -164,6 +164,13 @@ class QuadPlayerViewModel @Inject constructor(
         pendingSwapSource.value = null
         viewModelScope.launch {
             engine.swap(sourceIndex, targetIndex)
+            val audioIndex = audioSourceManager.currentAudioSource.value
+            val movedAudio = when (audioIndex) {
+                sourceIndex -> targetIndex
+                targetIndex -> sourceIndex
+                else -> audioIndex
+            }
+            if (movedAudio != audioIndex) audioSourceManager.switchTo(movedAudio, volumeTargets, false)
         }
     }
 

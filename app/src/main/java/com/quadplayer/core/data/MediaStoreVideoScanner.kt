@@ -4,6 +4,7 @@ import android.content.ContentUris
 import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import com.quadplayer.core.database.VideoEntity
@@ -28,7 +29,7 @@ class MediaStoreVideoScanner @Inject constructor(
             add(MediaStore.Video.Media.MIME_TYPE)
             add(MediaStore.Video.Media.DATE_MODIFIED)
             add(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
-            add(MediaStore.Video.Media.RELATIVE_PATH)
+            if (Build.VERSION.SDK_INT >= 29) add(MediaStore.Video.Media.RELATIVE_PATH)
             add(MediaStore.MediaColumns.DATA)
         }.toTypedArray()
 
@@ -48,14 +49,14 @@ class MediaStoreVideoScanner @Inject constructor(
             val mimeIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE)
             val modifiedIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_MODIFIED)
             val bucketIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
-            val relativeIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.RELATIVE_PATH)
+            val relativeIndex = cursor.getColumnIndex(MediaStore.Video.Media.RELATIVE_PATH)
             val dataIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
 
             buildList {
                 while (cursor.moveToNext()) {
                     val mediaId = cursor.getLong(idIndex)
                     val uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, mediaId)
-                    val folderPath = cursor.getString(relativeIndex).orEmpty()
+                    val folderPath = if (relativeIndex >= 0) cursor.getString(relativeIndex).orEmpty() else if (dataIndex >= 0) cursor.getString(dataIndex)?.substringBeforeLast('/', "").orEmpty() else ""
                     val folderName = cursor.getString(bucketIndex).orEmpty().ifBlank {
                         folderPath.trimEnd('/').substringAfterLast('/', "本地视频")
                     }
@@ -76,7 +77,7 @@ class MediaStoreVideoScanner @Inject constructor(
                     )
                 }
             }
-        }.orEmpty()
+        } ?: error("MediaStore query returned no cursor")
     }
 
     suspend fun inspectImportedVideo(uri: Uri): VideoEntity? = withContext(Dispatchers.IO) {

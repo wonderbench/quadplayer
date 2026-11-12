@@ -8,6 +8,10 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.ViewCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 
 @Composable
 fun LockScreenOrientation(orientation: Int) {
@@ -31,8 +35,9 @@ fun ImmersiveFullscreen(
     hideNavigationBars: Boolean = true,
 ) {
     val activity = LocalContext.current.findActivity()
+    val lifecycleOwner = LocalLifecycleOwner.current
 
-    DisposableEffect(activity, hideStatusBars, hideNavigationBars) {
+    DisposableEffect(activity, lifecycleOwner, hideStatusBars, hideNavigationBars) {
         val window = activity?.window
         val decorView = window?.decorView
         val controller = if (window != null && decorView != null) {
@@ -45,6 +50,14 @@ fun ImmersiveFullscreen(
             if (hideNavigationBars) add(WindowInsetsCompat.Type.navigationBars())
         }.fold(0) { acc, type -> acc or type }
 
+        val originalBehavior = controller?.systemBarsBehavior
+        val originalInsets = decorView?.let { ViewCompat.getRootWindowInsets(it) }
+        val statusWasVisible = originalInsets?.isVisible(WindowInsetsCompat.Type.statusBars()) ?: true
+        val navigationWasVisible = originalInsets?.isVisible(WindowInsetsCompat.Type.navigationBars()) ?: true
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && insetTypes != 0) controller?.hide(insetTypes)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
         if (controller != null && insetTypes != 0) {
             controller.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
@@ -52,8 +65,11 @@ fun ImmersiveFullscreen(
         }
 
         onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
             if (controller != null && insetTypes != 0) {
-                controller.show(insetTypes)
+                if (hideStatusBars && statusWasVisible) controller.show(WindowInsetsCompat.Type.statusBars())
+                if (hideNavigationBars && navigationWasVisible) controller.show(WindowInsetsCompat.Type.navigationBars())
+                if (originalBehavior != null) controller.systemBarsBehavior = originalBehavior
             }
         }
     }

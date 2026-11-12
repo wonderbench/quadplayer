@@ -54,11 +54,13 @@ fun QuadPlayerApp() {
         BottomDestination(Screen.Settings, R.string.nav_settings) { Icon(Icons.Rounded.Settings, contentDescription = null) },
     )
 
+    val entry by navController.currentBackStackEntryAsState()
+    val playbackRoute = entry?.destination?.route in setOf(Screen.Player.route, Screen.Quad.route)
     Scaffold(bottomBar = { QuadPlayerBottomBar(navController, bottomDestinations) }) { innerPadding ->
         NavHost(
             navController = navController,
             startDestination = Screen.Home.route,
-            modifier = Modifier.padding(innerPadding),
+            modifier = if (playbackRoute) Modifier else Modifier.padding(innerPadding),
         ) {
             composable(Screen.Home.route) {
                 val viewModel: HomeViewModel = hiltViewModel()
