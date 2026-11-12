@@ -116,8 +116,11 @@ fun PlayerScreen(
     var inPip by remember { mutableStateOf(activity?.isInPictureInPictureMode == true) }
     var pickerOpen by remember { mutableStateOf(false) }
     val pipSupported = context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
-    val videoWidth = state.video?.width ?: 0
-    val videoHeight = state.video?.height ?: 0
+    val displaySize = state.playerState.videoSize
+    val hasDisplaySize = displaySize.width > 0 && displaySize.height > 0
+    val videoWidth = if (hasDisplaySize) displaySize.width else state.video?.width ?: 0
+    val videoHeight = if (hasDisplaySize) displaySize.height else state.video?.height ?: 0
+    val pixelRatio = if (hasDisplaySize) displaySize.pixelWidthHeightRatio else 1f
     var speedBeforeHold by remember { mutableStateOf<PlaybackSpeed?>(null) }
     fun endSpeedHold() {
         speedBeforeHold?.let(viewModel::setSpeed)
@@ -130,22 +133,22 @@ fun PlayerScreen(
         component?.addOnPictureInPictureModeChangedListener(listener)
         onDispose { component?.removeOnPictureInPictureModeChangedListener(listener) }
     }
-    DisposableEffect(activity, pipSupported, videoWidth, videoHeight, state.settings.autoPictureInPicture, state.playerState.isPlaying, inPip, pickerOpen) {
+    DisposableEffect(activity, pipSupported, videoWidth, videoHeight, pixelRatio, state.settings.autoPictureInPicture, state.playerState.isPlaying, inPip, pickerOpen) {
         if (activity != null && pipSupported) {
             runCatching {
                 activity.setPictureInPictureParams(pipParams(videoWidth, videoHeight,
-                    state.settings.autoPictureInPicture && state.playerState.isPlaying && !inPip && !pickerOpen))
+                    state.settings.autoPictureInPicture && state.playerState.isPlaying && !inPip && !pickerOpen, pixelRatio))
             }
         }
         onDispose {
             if (activity != null && pipSupported && android.os.Build.VERSION.SDK_INT >= 31) {
-                runCatching { activity.setPictureInPictureParams(pipParams(videoWidth, videoHeight, false)) }
+                runCatching { activity.setPictureInPictureParams(pipParams(videoWidth, videoHeight, false, pixelRatio)) }
             }
         }
     }
     fun suppressAutoPipForPicker() {
         pickerOpen = true
-        if (activity != null && pipSupported) runCatching { activity.setPictureInPictureParams(pipParams(videoWidth, videoHeight, false)) }
+        if (activity != null && pipSupported) runCatching { activity.setPictureInPictureParams(pipParams(videoWidth, videoHeight, false, pixelRatio)) }
     }
     var floatingActionsOnLeft by rememberSaveable { mutableStateOf(false) }
 
@@ -371,7 +374,7 @@ fun PlayerScreen(
                                     if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                                         DropdownMenuItem(text = { Text(stringResource(R.string.player_pip)) }, onClick = {
                                             showMore = false
-                                            runCatching { activity?.enterPictureInPictureMode(pipParams(videoWidth, videoHeight, false)) }
+                                            runCatching { activity?.enterPictureInPictureMode(pipParams(videoWidth, videoHeight, false, pixelRatio)) }
                                         })
                                     }
                                 }
@@ -459,7 +462,7 @@ fun PlayerScreen(
                         if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) TextButton(
                             onClick = {
                                 runCatching { (context as? Activity)?.enterPictureInPictureMode(
-                                    pipParams(videoWidth, videoHeight, false),
+                                    pipParams(videoWidth, videoHeight, false, pixelRatio),
                                 ) }
                             },
                         ) {
