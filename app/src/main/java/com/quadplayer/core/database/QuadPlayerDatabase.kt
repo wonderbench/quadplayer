@@ -13,7 +13,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PlaylistVideoEntity::class,
         QuadSessionEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class QuadPlayerDatabase : RoomDatabase() {
@@ -48,5 +48,13 @@ val MIGRATION_3_4 = object : Migration(3, 4) {
         """.trimIndent())
         db.execSQL("DROP INDEX IF EXISTS index_play_history_video_id")
         db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_play_history_video_id ON play_history (video_id)")
+    }
+}
+
+val MIGRATION_4_5 = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE videos ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0")
+        // Version 4 used is_accessible for explicit removal of manual entries.
+        db.execSQL("UPDATE videos SET is_hidden = 1 WHERE is_manually_added = 1 AND is_accessible = 0")
     }
 }

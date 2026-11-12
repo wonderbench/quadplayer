@@ -14,6 +14,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 import org.junit.runner.RunWith
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -23,6 +24,37 @@ class DatabaseMigrationTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private val name = "migration-test.db"
     @After fun cleanUp() { context.deleteDatabase(name) }
+
+    @Test fun migrationKeepsPreviouslyRemovedManualVideosHidden() = runBlocking {
+        context.deleteDatabase(name)
+        val path = context.getDatabasePath(name)
+        path.parentFile?.mkdirs()
+        SQLiteDatabase.openOrCreateDatabase(path, null).use { db ->
+            db.execSQL("CREATE TABLE videos (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, uri_string TEXT NOT NULL, display_name TEXT NOT NULL, folder_path TEXT NOT NULL, folder_name TEXT NOT NULL, duration_ms INTEGER NOT NULL, size_bytes INTEGER NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, mime_type TEXT NOT NULL, date_modified INTEGER NOT NULL, is_favorite INTEGER NOT NULL, is_manually_added INTEGER NOT NULL, local_path TEXT, is_accessible INTEGER NOT NULL DEFAULT 1)")
+            db.execSQL("CREATE UNIQUE INDEX index_videos_uri_string ON videos (uri_string)")
+            db.execSQL("CREATE TABLE play_history (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, video_id INTEGER NOT NULL, last_position_ms INTEGER NOT NULL, last_played_at INTEGER NOT NULL, FOREIGN KEY(video_id) REFERENCES videos(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
+            db.execSQL("CREATE UNIQUE INDEX index_play_history_video_id ON play_history (video_id)")
+            db.execSQL("CREATE TABLE playlists (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)")
+            db.execSQL("CREATE TABLE playlist_videos (playlist_id INTEGER NOT NULL, video_id INTEGER NOT NULL, sort_order INTEGER NOT NULL, PRIMARY KEY(playlist_id, video_id), FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON UPDATE NO ACTION ON DELETE CASCADE, FOREIGN KEY(video_id) REFERENCES videos(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
+            db.execSQL("CREATE INDEX index_playlist_videos_playlist_id ON playlist_videos (playlist_id)")
+            db.execSQL("CREATE INDEX index_playlist_videos_video_id ON playlist_videos (video_id)")
+            db.execSQL("CREATE TABLE quad_session (id INTEGER NOT NULL PRIMARY KEY, payload TEXT NOT NULL)")
+            db.execSQL("INSERT INTO videos VALUES (1,'content://video/manual','v','imported','imported',100,100,1,1,'video/mp4',1,1,1,NULL,0)")
+            db.execSQL("INSERT INTO play_history VALUES (1,1,42,1)")
+            db.version = 4
+        }
+        val db = Room.databaseBuilder(context, QuadPlayerDatabase::class.java, name)
+            .allowMainThreadQueries().addMigrations(MIGRATION_4_5).build()
+        try {
+            assertTrue(db.videoDao().getById(1)!!.isHidden)
+            assertFalse(db.videoDao().getById(1)!!.isAccessible)
+            assertTrue(db.videoDao().observeAll().first().isEmpty())
+            assertEquals(42L, db.playHistoryDao().getByVideoId(1)!!.lastPositionMs)
+            db.videoDao().markAvailable(1)
+            assertFalse(db.videoDao().getById(1)!!.isHidden)
+            assertTrue(db.videoDao().getById(1)!!.isAccessible)
+        } finally { db.close() }
+    }
 
     @Test fun migrationRetainsReferencesWhenAccessIsRemovedAndRestored() = runBlocking {
         context.deleteDatabase(name)
@@ -46,11 +78,12 @@ class DatabaseMigrationTest {
             db.version = 1
         }
         val db = Room.databaseBuilder(context, QuadPlayerDatabase::class.java, name)
-            .allowMainThreadQueries().addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4).build()
+            .allowMainThreadQueries().addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
         try {
             val dao = db.videoDao()
             val video = dao.getById(1)!!
             assertTrue(video.isFavorite && video.isAccessible)
+            assertFalse(video.isHidden)
             assertEquals(77L, db.playHistoryDao().getByVideoId(1)!!.lastPositionMs)
             assertEquals(1, db.playlistDao().observePlaylistVideos(1).first().size)
             dao.markUnavailable(listOf(1))

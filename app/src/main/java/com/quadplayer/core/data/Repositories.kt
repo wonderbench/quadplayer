@@ -5,6 +5,7 @@ import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.quadplayer.R
 import android.util.Log
+import androidx.core.net.toUri
 import kotlinx.coroutines.CancellationException
 import androidx.room.withTransaction
 import com.quadplayer.core.database.PlayHistoryDao
@@ -25,6 +26,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -72,6 +75,7 @@ class DefaultVideoRepository @Inject constructor(
     private val database: QuadPlayerDatabase,
 ) : VideoRepository {
     private val refreshCoordinator = RefreshCoordinator(CoroutineScope(SupervisorJob() + Dispatchers.IO), ::scanAndUpdate)
+    private val manualAccessLock = Mutex()
     override val videos: Flow<List<VideoFile>> = videoDao.observeAll().map { rows -> rows.map { it.toModel() } }
     override val favorites: Flow<List<VideoFile>> = videoDao.observeFavorites().map { rows -> rows.map { it.toModel() } }
     override val folders: Flow<List<FolderInfo>> = videoDao.observeFolders()
@@ -85,6 +89,7 @@ class DefaultVideoRepository @Inject constructor(
             throw cancelled
         } catch (failure: Exception) {
             Log.w("VideoRepository", "MediaStore scan failed; retaining cached videos", failure)
+            checkManualAvailability()
             return
         }
         val authorizedUris = withContext(Dispatchers.IO) { scanner.persistedMediaUris() }
@@ -93,30 +98,51 @@ class DefaultVideoRepository @Inject constructor(
             changes.hideIds.chunked(500).forEach { videoDao.markUnavailable(it) }
             if (changes.upserts.isNotEmpty()) videoDao.upsertAll(changes.upserts)
         }
+        checkManualAvailability()
     }
 
-    override suspend fun importVideo(uri: Uri): VideoFile? = withContext(Dispatchers.IO) {
+    private suspend fun checkManualAvailability() = manualAccessLock.withLock {
+        val missing = mutableListOf<Long>()
+        val restored = mutableListOf<Long>()
+        videoDao.getAll().filter { it.isManuallyAdded && !it.isHidden }.forEach { video ->
+            val access = try {
+                scanner.manualVideoAccess(video.uriString.toUri())
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                Log.w("VideoRepository", "Could not check imported video availability", failure)
+                ManualVideoAccess.UNKNOWN
+            }
+            when {
+                access == ManualVideoAccess.UNAVAILABLE && video.isAccessible -> missing.add(video.id)
+                access == ManualVideoAccess.AVAILABLE && !video.isAccessible -> restored.add(video.id)
+            }
+        }
+        missing.chunked(500).forEach { videoDao.markManualUnavailable(it) }
+        restored.chunked(500).forEach { videoDao.markManualAvailable(it) }
+    }
+
+    override suspend fun importVideo(uri: Uri): VideoFile? = withContext(Dispatchers.IO) { manualAccessLock.withLock {
         val imported = scanner.inspectImportedVideo(uri) ?: run {
             // Re-establish the MediaStore equivalent of a retained document grant after restart.
-            if (uri.authority != android.provider.MediaStore.AUTHORITY || uri.toString() !in scanner.persistedMediaUris()) return@withContext null
-            scanner.inspectImportedVideo(uri) ?: return@withContext null
+            if (uri.authority != android.provider.MediaStore.AUTHORITY || uri.toString() !in scanner.persistedMediaUris()) return@withLock null
+            scanner.inspectImportedVideo(uri) ?: return@withLock null
         }
         val mediaUri = scanner.persistedMediaUri(uri)
         val normalized = if (mediaUri != null) imported.copy(uriString = mediaUri.toString(), isManuallyAdded = false) else imported
         database.withTransaction {
             val existing = videoDao.getByUriString(normalized.uriString)
             if (existing != null) {
-                if (!existing.isAccessible) videoDao.markAvailable(existing.id)
-                existing.copy(isAccessible = true).toModel()
+                if (!existing.isAccessible || existing.isHidden) videoDao.markAvailable(existing.id)
+                existing.copy(isAccessible = true, isHidden = false).toModel()
             } else {
                 val id = videoDao.upsert(normalized)
                 (videoDao.getById(id) ?: normalized.copy(id = id)).toModel()
             }
         }
-    }
+    } }
 
     override suspend fun getVideo(videoId: Long): VideoFile? = withContext(Dispatchers.IO) {
-        videoDao.getById(videoId)?.takeIf { it.isAccessible }?.toModel()
+        videoDao.getById(videoId)?.takeIf { it.isAccessible && !it.isHidden }?.toModel()
     }
 
     override suspend fun toggleFavorite(videoId: Long) = withContext(Dispatchers.IO) {
@@ -125,7 +151,7 @@ class DefaultVideoRepository @Inject constructor(
     }
 
     override suspend fun hideManualVideo(videoId: Long): Boolean = withContext(Dispatchers.IO) {
-        videoDao.hideManualVideo(videoId) == 1
+        manualAccessLock.withLock { videoDao.hideManualVideo(videoId) == 1 }
     }
 }
 
