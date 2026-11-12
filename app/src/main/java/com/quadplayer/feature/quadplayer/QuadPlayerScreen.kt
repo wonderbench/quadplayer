@@ -97,6 +97,15 @@ fun QuadPlayerScreen(
     var bottomOverlayHeight by remember { mutableIntStateOf(0) }
     val progressBottomInset = if (controlsVisible) with(LocalDensity.current) { bottomOverlayHeight.toDp() } else 0.dp
 
+    DisposableEffect(lifecycleOwner, progressVisibleSlot) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) viewModel.setProgressVisibleSlot(progressVisibleSlot)
+            if (event == Lifecycle.Event.ON_STOP) viewModel.setProgressVisibleSlot(-1)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); viewModel.setProgressVisibleSlot(-1) }
+    }
+
     val hasPlayingVideo = state.slots.any { it.isPlaying }
 
     LaunchedEffect(

@@ -39,6 +39,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     private val generations = LongArray(4)
     private var settings = AppSettings()
     private var globalSpeed: PlaybackSpeed? = null
+    private var progressVisibleSlot = -1
     private var suspended = false
     private var interrupted = false
     private val resumeIntents = mutableMapOf<PlayerController, Boolean>()
@@ -70,6 +71,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
         val generation = generations[slotIndex]
         val old = slots[slotIndex].value.controller
         val controller = PlayerController(context, compactLocalBuffer = true)
+        controller.setProgressUpdatesEnabled(false)
         pending[slotIndex] = controller
         try {
             controller.applySettings(settings)
@@ -80,6 +82,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
             val selectedSpeed = old?.player?.playbackParameters?.speed?.let(PlaybackSpeed::fromValue) ?: globalSpeed
             selectedSpeed?.let(controller::setPlaybackSpeed)
             controller.player.volume = volumes[slotIndex]
+            controller.setProgressUpdatesEnabled(slotIndex == progressVisibleSlot)
             slots[slotIndex].value = Slot(video, controller)
             pending[slotIndex] = null
             resumeIntents.remove(old)
@@ -157,6 +160,12 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
         val firstSlot = slots[first].value
         slots[first].value = slots[second].value
         slots[second].value = firstSlot
+        setProgressVisibleSlot(progressVisibleSlot)
+    }
+
+    fun setProgressVisibleSlot(index: Int) {
+        progressVisibleSlot = index
+        slots.forEachIndexed { slotIndex, slot -> slot.value.controller?.setProgressUpdatesEnabled(slotIndex == index) }
     }
 
     fun togglePlayAll() {

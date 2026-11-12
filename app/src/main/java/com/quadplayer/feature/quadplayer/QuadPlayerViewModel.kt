@@ -158,6 +158,7 @@ class QuadPlayerViewModel @Inject constructor(
     }
 
     fun controllerAt(index: Int): PlayerController? = engine.controllerAt(index)
+    fun setProgressVisibleSlot(index: Int) = engine.setProgressVisibleSlot(index)
 
     fun onScreenStopped() {
         engine.suspendPlayback()
