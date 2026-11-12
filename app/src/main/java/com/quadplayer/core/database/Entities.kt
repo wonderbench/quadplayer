@@ -51,6 +51,12 @@ data class PlayHistoryEntity(
     @ColumnInfo(name = "last_played_at") val lastPlayedAt: Long,
 )
 
+@Entity(tableName = "quad_session")
+data class QuadSessionEntity(
+    @PrimaryKey val id: Int = 0,
+    val payload: String,
+)
+
 @Entity(tableName = "playlists")
 data class PlaylistEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,

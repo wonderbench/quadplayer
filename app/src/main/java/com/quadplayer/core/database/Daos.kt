@@ -80,6 +80,15 @@ interface PlayHistoryDao {
 }
 
 @Dao
+interface QuadSessionDao {
+    @Query("SELECT * FROM quad_session WHERE id = 0")
+    suspend fun get(): QuadSessionEntity?
+
+    @Upsert
+    suspend fun save(session: QuadSessionEntity)
+}
+
+@Dao
 interface PlaylistDao {
     @Query(
         """

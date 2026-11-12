@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quadplayer.R
 import com.quadplayer.core.data.SettingsRepository
+import com.quadplayer.core.data.QuadSessionRepository
+import com.quadplayer.core.data.SavedQuadSession
 import com.quadplayer.core.data.VideoRepository
 import com.quadplayer.core.model.AppSettings
 import com.quadplayer.core.model.LayoutMode
@@ -24,6 +26,8 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 
 data class QuadPlayerUiState(
     val slots: List<QuadSlotUiState> = List(4) { QuadSlotUiState(index = it) },
@@ -32,6 +36,7 @@ data class QuadPlayerUiState(
     val settings: AppSettings = AppSettings(),
     val warningMessage: String? = null,
     val pendingSwapSource: Int? = null,
+    val offerRecovery: Boolean = false,
 )
 
 @HiltViewModel
@@ -39,6 +44,7 @@ class QuadPlayerViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val videoRepository: VideoRepository,
     private val settingsRepository: SettingsRepository,
+    private val sessionRepository: QuadSessionRepository,
     private val capabilityChecker: DeviceCapabilityChecker,
     private val performanceMonitor: PerformanceMonitor,
 ) : ViewModel() {
@@ -47,6 +53,10 @@ class QuadPlayerViewModel @Inject constructor(
     private val layoutManager = QuadLayoutManager()
     private val warningMessage = MutableStateFlow<String?>(null)
     private val pendingSwapSource = MutableStateFlow<Int?>(null)
+    private val pendingRecovery = MutableStateFlow<SavedQuadSession?>(null)
+    private var sessionReady = false
+    private var restoring = false
+    private var released = false
     private val volumeTargets = List(4) { QuadVolumeTarget(engine, it) }
 
     private val baseUiState = combine(
@@ -66,10 +76,12 @@ class QuadPlayerViewModel @Inject constructor(
         baseUiState,
         warningMessage,
         pendingSwapSource,
-    ) { baseState, warning, pendingSwap ->
+        pendingRecovery,
+    ) { baseState, warning, pendingSwap, recovery ->
         baseState.copy(
             warningMessage = warning,
             pendingSwapSource = pendingSwap,
+            offerRecovery = recovery != null,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), QuadPlayerUiState())
 
@@ -101,6 +113,24 @@ class QuadPlayerViewModel @Inject constructor(
 
         audioSourceManager.muteAll(volumeTargets)
         layoutManager.reset()
+        viewModelScope.launch {
+            try {
+                val previous = sessionRepository.read()
+                if (engine.snapshot().all { it == null } && previous?.slots?.any { it != null } == true) {
+                    pendingRecovery.value = previous
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                warningMessage.value = context.getString(R.string.quad_session_read_failed)
+            } finally { sessionReady = true }
+        }
+        viewModelScope.launch {
+            while (true) {
+                delay(10000)
+                saveSession()
+            }
+        }
     }
 
     fun controllerAt(index: Int): PlayerController? = engine.controllerAt(index)
@@ -186,11 +216,55 @@ class QuadPlayerViewModel @Inject constructor(
         }
     }
 
+    fun dismissRecovery() { pendingRecovery.value = null }
+
+    fun restoreSession() {
+        val session = pendingRecovery.value ?: return
+        pendingRecovery.value = null
+        restoring = true
+        viewModelScope.launch {
+            var failed = false
+            try {
+                session.slots.forEachIndexed { index, slot ->
+                    if (slot != null) {
+                        try {
+                            val video = videoRepository.importVideo(Uri.parse(slot.uri))
+                            if (video == null) { failed = true; return@forEachIndexed }
+                            engine.load(index, video)
+                            engine.seekSlot(index, slot.positionMs)
+                            engine.setSlotSpeed(index, PlaybackSpeed.fromValue(slot.speed))
+                            if (!slot.playing) engine.controllerAt(index)?.pause()
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) { failed = true }
+                    }
+                }
+                when (session.layout) {
+                    LayoutMode.EQUAL_GRID -> layoutManager.reset()
+                    LayoutMode.FOCUS_GRID -> layoutManager.focus(session.focusedSlot)
+                    LayoutMode.SINGLE -> layoutManager.focus(session.focusedSlot, single = true)
+                }
+                if (session.audioSource in 0..3 && engine.hasController(session.audioSource)) {
+                    audioSourceManager.switchTo(session.audioSource, volumeTargets, false)
+                } else audioSourceManager.muteAll(volumeTargets)
+                if (failed) warningMessage.value = context.getString(R.string.quad_session_some_missing)
+            } finally { restoring = false }
+        }
+    }
+
+    fun saveSession() {
+        if (!sessionReady || restoring || released || pendingRecovery.value != null) return
+        val layout = layoutManager.state.value
+        sessionRepository.save(SavedQuadSession(engine.snapshot(), layout.mode, layout.focusedSlot, audioSourceManager.currentAudioSource.value))
+    }
+
     fun clearWarning() {
         warningMessage.value = null
     }
 
     override fun onCleared() {
+        saveSession()
+        released = true
         performanceMonitor.stop()
         engine.release()
         super.onCleared()

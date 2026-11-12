@@ -35,6 +35,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -52,6 +53,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.quadplayer.R
@@ -72,6 +76,12 @@ fun QuadPlayerScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     BackHandler(enabled = state.layoutMode != LayoutMode.EQUAL_GRID) { viewModel.resetLayout() }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, viewModel) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) viewModel.saveSession() }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer); viewModel.saveSession() }
+    }
     var pendingSlot by remember { mutableIntStateOf(-1) }
     var menuSlot by remember { mutableStateOf<Int?>(null) }
     var controlsVisible by remember { mutableStateOf(false) }
@@ -186,6 +196,16 @@ fun QuadPlayerScreen(
                 onInteraction = { controlsInteractionVersion += 1 },
             )
         }
+    }
+
+    if (state.offerRecovery) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissRecovery,
+            title = { Text(stringResource(R.string.quad_session_title)) },
+            text = { Text(stringResource(R.string.quad_session_message)) },
+            confirmButton = { TextButton(onClick = viewModel::restoreSession) { Text(stringResource(R.string.quad_session_restore)) } },
+            dismissButton = { TextButton(onClick = viewModel::dismissRecovery) { Text(stringResource(R.string.quad_session_new)) } },
+        )
     }
 
     menuSlot?.let { slotIndex ->

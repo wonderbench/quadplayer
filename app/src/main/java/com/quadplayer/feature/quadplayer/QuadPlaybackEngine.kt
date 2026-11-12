@@ -1,6 +1,7 @@
 package com.quadplayer.feature.quadplayer
 
 import android.content.Context
+import com.quadplayer.core.data.SavedQuadSlot
 import com.quadplayer.core.model.AppSettings
 import com.quadplayer.core.model.PlaybackSpeed
 import com.quadplayer.core.model.VideoFile
@@ -117,6 +118,18 @@ class QuadPlaybackEngine(private val context: Context) {
     fun setGlobalSpeed(speed: PlaybackSpeed) {
         globalSpeed = speed
         slots.forEach { it.value.controller?.setPlaybackSpeed(speed) }
+    }
+
+    fun snapshot(): List<SavedQuadSlot?> = slots.map { slot ->
+        val current = slot.value
+        val controller = current.controller
+        val video = current.video
+        if (controller == null || video == null) null else SavedQuadSlot(
+            video.uriString,
+            controller.player.currentPosition.coerceAtLeast(0L),
+            controller.player.playbackParameters.speed,
+            controller.player.playWhenReady,
+        )
     }
 
     fun setVolume(index: Int, volume: Float) {
