@@ -25,6 +25,35 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class QuadPlaybackEngineTest {
+    @Test fun stoppedControlsChangeIntentWithoutRestartingPlayback() = runBlocking(Dispatchers.Main) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = File(context.cacheDir, "quad-stopped-controls.wav").apply { writeBytes(ByteArray(44)) }
+        val video = VideoFile(1, Uri.fromFile(file).toString(), "test", "test", "test", 5000, file.length(), 0, 0, "audio/wav", 0, false, true)
+        val engine = QuadPlaybackEngine(context)
+        try {
+            engine.load(0, video)
+            engine.suspendPlayback()
+            engine.togglePlayAll() // pause the prior foreground intent
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+            assertFalse(engine.snapshot()[0]!!.playing)
+            engine.toggleSlot(0) // request a resume, but remain stopped
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+            assertTrue(engine.snapshot()[0]!!.playing)
+            engine.retrySlot(0)
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+            assertTrue(engine.snapshot()[0]!!.playing)
+            engine.resumePlayback()
+            assertTrue(engine.controllerAt(0)!!.player.playWhenReady)
+            engine.interruptPlayback()
+            engine.toggleSlot(0)
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+            engine.togglePlayAll()
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+            engine.retrySlot(0)
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+        } finally { engine.release(); file.delete() }
+    }
+
     @Test fun lateReplacementCancelsPendingSynchronization() = runBlocking(Dispatchers.Main) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val file = File(context.cacheDir, "quad-sync-replace.wav")

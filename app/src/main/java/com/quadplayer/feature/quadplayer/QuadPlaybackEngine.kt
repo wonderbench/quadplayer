@@ -209,20 +209,27 @@ class QuadPlaybackEngine(
 
     fun togglePlayAll() {
         cancelSynchronization()
-        val populated = slots.mapNotNull { it.value.controller }
-        val anyPlaying = populated.any { it.player.playWhenReady }
-        populated.forEach { if (anyPlaying) it.pause() else it.play() }
+        val anyPlaying = hasPlayIntent()
+        slots.indices.forEach { index -> setSlotPlaying(index, !anyPlaying) }
     }
 
     fun currentPosition(slotIndex: Int): Long? = slots[slotIndex].value.controller?.player?.currentPosition
 
     fun toggleSlot(slotIndex: Int) {
         cancelSynchronization()
-        val player = slots[slotIndex].value.controller?.player ?: return
+        val controller = slots[slotIndex].value.controller ?: return
+        val player = controller.player
+        val playing = if (suspended) resumeIntents[controller] == true else player.playWhenReady
         if (player.playbackState == Player.STATE_ENDED) {
             player.seekToDefaultPosition()
-            player.play()
-        } else if (shouldPauseOnToggle(player.playWhenReady, ended = false)) player.pause() else player.play()
+            setSlotPlaying(slotIndex, true)
+        } else setSlotPlaying(slotIndex, !shouldPauseOnToggle(playing, ended = false))
+    }
+
+    fun retrySlot(slotIndex: Int) {
+        val controller = slots[slotIndex].value.controller ?: return
+        controller.retry(playWhenReady = false)
+        setSlotPlaying(slotIndex, true)
     }
 
     fun setSlotSpeed(slotIndex: Int, speed: PlaybackSpeed) {

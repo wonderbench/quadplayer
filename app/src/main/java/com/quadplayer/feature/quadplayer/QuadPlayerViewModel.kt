@@ -316,7 +316,7 @@ class QuadPlayerViewModel @Inject constructor(
         if (restoring) return
         if (audioSourceManager.currentAudioSource.value < 0 || requestAudioFocus()) {
             engine.allowPlayback()
-            engine.controllerAt(slotIndex)?.retry()
+            engine.retrySlot(slotIndex)
         }
     }
 
