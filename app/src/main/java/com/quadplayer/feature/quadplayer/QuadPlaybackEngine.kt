@@ -1,8 +1,10 @@
 package com.quadplayer.feature.quadplayer
 
 import android.content.Context
+import androidx.media3.common.Player
 import com.quadplayer.core.model.AppSettings
 import com.quadplayer.core.model.PlaybackSpeed
+import com.quadplayer.core.model.PlaybackState
 import com.quadplayer.core.model.VideoFile
 import com.quadplayer.feature.player.PlayerController
 import com.quadplayer.feature.player.PlayerUiState
@@ -23,6 +25,8 @@ data class QuadSlotUiState(
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val errorMessage: String? = null,
+    val playWhenReady: Boolean = false,
+    val playbackEnded: Boolean = false,
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -40,8 +44,13 @@ class QuadPlaybackEngine(private val context: Context) {
         val slotFlows = slots.mapIndexed { index, slot ->
             slot.flatMapLatest { current ->
                 (current.controller?.uiState ?: flowOf(PlayerUiState())).map { state ->
-                    QuadSlotUiState(index, current.video, false, state.isPlaying, state.playbackSpeed,
-                        state.currentPositionMs, state.durationMs, state.errorMessage)
+                    QuadSlotUiState(
+                        index = index, video = current.video, isPlaying = state.isPlaying,
+                        playbackSpeed = state.playbackSpeed, positionMs = state.currentPositionMs,
+                        durationMs = state.durationMs, errorMessage = state.errorMessage,
+                        playWhenReady = state.playWhenReady,
+                        playbackEnded = state.playbackState == PlaybackState.ENDED,
+                    )
                 }
             }
         }
@@ -89,7 +98,10 @@ class QuadPlaybackEngine(private val context: Context) {
 
     fun toggleSlot(slotIndex: Int) {
         val player = slots[slotIndex].value.controller?.player ?: return
-        if (player.playWhenReady) player.pause() else player.play()
+        if (player.playbackState == Player.STATE_ENDED) {
+            player.seekToDefaultPosition()
+            player.play()
+        } else if (shouldPauseOnToggle(player.playWhenReady, ended = false)) player.pause() else player.play()
     }
 
     fun setSlotSpeed(slotIndex: Int, speed: PlaybackSpeed) {
@@ -132,3 +144,5 @@ class QuadPlaybackEngine(private val context: Context) {
 class QuadVolumeTarget(private val engine: QuadPlaybackEngine, private val index: Int) : VolumeTarget {
     override fun setVolume(volume: Float) = engine.setVolume(index, volume)
 }
+
+internal fun shouldPauseOnToggle(playWhenReady: Boolean, ended: Boolean): Boolean = playWhenReady && !ended
