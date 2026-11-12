@@ -82,35 +82,41 @@ class MediaStoreVideoScanner @Inject constructor(
 
     suspend fun inspectImportedVideo(uri: Uri): VideoEntity? = withContext(Dispatchers.IO) {
         val resolver = context.contentResolver
-        val metadata = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
-            ?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val name = cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
-                    val size = cursor.getLong(cursor.getColumnIndexOrThrow(OpenableColumns.SIZE))
-                    name to size
-                } else {
-                    null
+        val readable = runCatching { resolver.openFileDescriptor(uri, "r")?.use { true } ?: false }.getOrDefault(false)
+        if (!readable) return@withContext null
+        val metadata = runCatching {
+            resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
+                ?.use { cursor ->
+                    if (!cursor.moveToFirst()) return@use null
+                    val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                    val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                    (if (nameIndex >= 0) cursor.getString(nameIndex) else null) to
+                        (if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex) else 0L)
                 }
-            } ?: return@withContext null
-
-        val retriever = MediaMetadataRetriever()
-        try {
-            retriever.setDataSource(context, uri)
-            VideoEntity(
-                uriString = uri.toString(),
-                displayName = metadata.first,
-                folderPath = "imported",
-                folderName = "手动导入",
-                durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L,
-                sizeBytes = metadata.second,
-                width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0,
-                height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0,
-                mimeType = resolver.getType(uri) ?: "video/*",
-                dateModified = System.currentTimeMillis(),
-                isManuallyAdded = true,
-            )
-        } finally {
-            retriever.release()
-        }
+        }.getOrNull()
+        val dimensions = runCatching {
+            val retriever = MediaMetadataRetriever()
+            try {
+                retriever.setDataSource(context, uri)
+                Triple(
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L,
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0,
+                    retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0,
+                )
+            } finally { retriever.release() }
+        }.getOrDefault(Triple(0L, 0, 0))
+        VideoEntity(
+            uriString = uri.toString(),
+            displayName = metadata?.first?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment ?: "视频",
+            folderPath = "imported",
+            folderName = "手动导入",
+            durationMs = dimensions.first,
+            sizeBytes = metadata?.second ?: 0L,
+            width = dimensions.second,
+            height = dimensions.third,
+            mimeType = runCatching { resolver.getType(uri) }.getOrNull() ?: "video/*",
+            dateModified = System.currentTimeMillis(),
+            isManuallyAdded = true,
+        )
     }
 }

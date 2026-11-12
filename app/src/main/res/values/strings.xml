@@ -129,6 +129,7 @@
     <string name="quad_session_message">恢复上次的视频、进度、布局与音频设置。无法访问的视频可重新选择。</string>
     <string name="quad_session_reopen">恢复上次四格</string>
     <string name="quad_audio_source_failed">音频源无法播放，已切换到其他可用视频或静音。</string>
+    <string name="quad_import_failed">无法读取第 %1$d 格选择的文件，请重新选择。</string>
     <string name="quad_session_restore">恢复</string>
     <string name="quad_session_new">新建</string>
     <string name="quad_session_read_failed">无法读取上次会话。</string>

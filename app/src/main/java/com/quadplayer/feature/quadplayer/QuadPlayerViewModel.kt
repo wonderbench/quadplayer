@@ -162,11 +162,21 @@ class QuadPlayerViewModel @Inject constructor(
 
     fun addVideo(slotIndex: Int, uri: Uri) {
         viewModelScope.launch {
-            val video = videoRepository.importVideo(uri) ?: return@launch
-            loadAndInspect(slotIndex, video)
-            val settings = uiState.value.settings
-            if (audioSourceManager.currentAudioSource.value == -1) {
-                audioSourceManager.switchTo(slotIndex, volumeTargets, settings.crossfadeAudioSwitching)
+            try {
+                val video = videoRepository.importVideo(uri)
+                if (video == null) {
+                    warningMessage.value = context.getString(R.string.quad_import_failed, slotIndex + 1)
+                    return@launch
+                }
+                loadAndInspect(slotIndex, video)
+                val settings = uiState.value.settings
+                if (audioSourceManager.currentAudioSource.value == -1) {
+                    audioSourceManager.switchTo(slotIndex, volumeTargets, settings.crossfadeAudioSwitching)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                warningMessage.value = context.getString(R.string.quad_import_failed, slotIndex + 1)
             }
         }
     }
