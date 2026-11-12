@@ -109,6 +109,9 @@ class PlaybackSessionHost @Inject constructor(
 
     fun hasVisibleScreen(session: PlaybackSession): Boolean = session in visibleScreens
     internal fun hasActiveSession(): Boolean = active != null
+    internal fun screenSessionCount(): Int = screens.size
+    internal fun retainedSessionCount(): Int = if (retained == null) 0 else 1
+    internal fun currentVideoUri(): String? = active?.currentVideoUri()
 
     fun releaseScreen(session: PlaybackSession) {
         visibleScreens.remove(session)
