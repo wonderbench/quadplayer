@@ -1,0 +1,563 @@
+@file:kotlin.OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
+package com.quadplayer.feature.quadplayer
+
+import android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+import android.content.pm.ActivityInfo
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.media3.ui.AspectRatioFrameLayout
+import androidx.media3.ui.PlayerView
+import com.quadplayer.R
+import com.quadplayer.core.model.PlaybackSpeed
+import com.quadplayer.core.ui.ImmersiveFullscreen
+import com.quadplayer.core.ui.LockScreenOrientation
+import kotlinx.coroutines.delay
+
+@Composable
+fun QuadPlayerScreen(
+    viewModel: QuadPlayerViewModel,
+    onBack: () -> Unit,
+) {
+    LockScreenOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE)
+    ImmersiveFullscreen()
+
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    var pendingSlot by remember { mutableIntStateOf(-1) }
+    var menuSlot by remember { mutableStateOf<Int?>(null) }
+    var controlsVisible by remember { mutableStateOf(false) }
+    var controlsInteractionVersion by remember { mutableIntStateOf(0) }
+    var progressVisibleSlot by remember { mutableIntStateOf(-1) }
+    var progressInteractionVersion by remember { mutableIntStateOf(0) }
+
+    val hasPlayingVideo = state.slots.any { it.isPlaying }
+
+    LaunchedEffect(
+        controlsVisible,
+        hasPlayingVideo,
+        state.pendingSwapSource,
+        menuSlot,
+        controlsInteractionVersion,
+    ) {
+        if (controlsVisible && hasPlayingVideo && state.pendingSwapSource == null && menuSlot == null) {
+            delay(5000)
+            controlsVisible = false
+        }
+    }
+
+    LaunchedEffect(progressVisibleSlot, menuSlot, progressInteractionVersion) {
+        if (progressVisibleSlot >= 0 && menuSlot == null) {
+            delay(5000)
+            progressVisibleSlot = -1
+        }
+    }
+
+    val picker = rememberLauncherForActivityResult(OpenDocument()) { uri ->
+        val targetSlot = pendingSlot
+        pendingSlot = -1
+        if (uri != null && targetSlot >= 0) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(uri, FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            viewModel.addVideo(targetSlot, uri)
+            progressVisibleSlot = targetSlot
+            progressInteractionVersion += 1
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+    ) {
+        QuadGrid(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    top = if (controlsVisible) 92.dp else 0.dp,
+                    bottom = if (controlsVisible) 124.dp else 0.dp,
+                ),
+            state = state,
+            viewModel = viewModel,
+            onAddVideo = { slotIndex ->
+                pendingSlot = slotIndex
+                picker.launch(arrayOf("video/*"))
+            },
+            onOpenMenu = { slotIndex ->
+                menuSlot = slotIndex
+                progressVisibleSlot = -1
+            },
+            onSwitchAudio = { slotIndex ->
+                viewModel.toggleAudioSource(slotIndex)
+                progressVisibleSlot = slotIndex
+                progressInteractionVersion += 1
+            },
+            onShowProgress = { slotIndex ->
+                progressVisibleSlot = slotIndex
+                progressInteractionVersion += 1
+            },
+            onSeek = { slotIndex, positionMs ->
+                viewModel.seekSlot(slotIndex, positionMs)
+                progressVisibleSlot = slotIndex
+                progressInteractionVersion += 1
+            },
+            visibleProgressSlot = progressVisibleSlot,
+        )
+
+        TopOverlay(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(8.dp),
+            warningMessage = state.warningMessage,
+            pendingSwapSource = state.pendingSwapSource,
+            controlsVisible = controlsVisible,
+            onHideControls = { controlsVisible = false },
+            onDismissWarning = viewModel::clearWarning,
+            onShowControls = {
+                controlsVisible = true
+                controlsInteractionVersion += 1
+            },
+        )
+
+        if (controlsVisible) {
+            BottomOverlay(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(8.dp),
+                viewModel = viewModel,
+                onInteraction = { controlsInteractionVersion += 1 },
+            )
+        }
+    }
+
+    menuSlot?.let { slotIndex ->
+        val slot = state.slots[slotIndex]
+        SlotMenuDialog(
+            slot = slot,
+            pendingSwapSource = state.pendingSwapSource,
+            onDismiss = { menuSlot = null },
+            onRemove = {
+                viewModel.removeSlot(slotIndex)
+                menuSlot = null
+            },
+            onSwap = {
+                when (state.pendingSwapSource) {
+                    null -> viewModel.beginSwap(slotIndex)
+                    slotIndex -> viewModel.cancelSwap()
+                    else -> viewModel.completeSwap(slotIndex)
+                }
+                menuSlot = null
+            },
+            onReplace = {
+                pendingSlot = slotIndex
+                menuSlot = null
+                picker.launch(arrayOf("video/*"))
+            },
+        )
+    }
+}
+
+@Composable
+private fun TopOverlay(
+    modifier: Modifier,
+    warningMessage: String?,
+    pendingSwapSource: Int?,
+    controlsVisible: Boolean,
+    onHideControls: () -> Unit,
+    onDismissWarning: () -> Unit,
+    onShowControls: () -> Unit,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        if (controlsVisible) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                tonalElevation = 6.dp,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = onHideControls) {
+                        Text(stringResource(R.string.common_close))
+                    }
+                    Text(
+                        text = stringResource(R.string.quad_title),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(modifier = Modifier.width(64.dp))
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                Surface(
+                    tonalElevation = 4.dp,
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f),
+                ) {
+                    IconButton(onClick = onShowControls) {
+                        Icon(
+                            imageVector = Icons.Rounded.Tune,
+                            contentDescription = stringResource(R.string.quad_show_controls),
+                        )
+                    }
+                }
+            }
+        }
+
+        warningMessage?.let { warning ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                tonalElevation = 4.dp,
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.94f),
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = warning,
+                        modifier = Modifier.weight(1f),
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                    )
+                    TextButton(onClick = onDismissWarning) {
+                        Text(stringResource(R.string.quad_dismiss))
+                    }
+                }
+            }
+        }
+
+        pendingSwapSource?.let { sourceIndex ->
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                tonalElevation = 4.dp,
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.94f),
+            ) {
+                Text(
+                    text = stringResource(R.string.quad_swap_hint, sourceIndex + 1),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun BottomOverlay(
+    modifier: Modifier,
+    viewModel: QuadPlayerViewModel,
+    onInteraction: () -> Unit,
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        tonalElevation = 6.dp,
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AssistChip(
+                    onClick = {
+                        onInteraction()
+                        viewModel.togglePlayAll()
+                    },
+                    label = { Text(stringResource(R.string.quad_play_pause_all)) },
+                )
+                AssistChip(
+                    onClick = {
+                        onInteraction()
+                        viewModel.syncToAudioSource()
+                    },
+                    label = { Text(stringResource(R.string.quad_sync_to_audio)) },
+                )
+                AssistChip(
+                    onClick = {
+                        onInteraction()
+                        viewModel.muteAll()
+                    },
+                    label = { Text(stringResource(R.string.quad_mute_all)) },
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(stringResource(R.string.quad_speed_title), style = MaterialTheme.typography.labelLarge)
+                PlaybackSpeed.entries.forEach { speed ->
+                    AssistChip(
+                        onClick = {
+                            onInteraction()
+                            viewModel.setGlobalSpeed(speed)
+                        },
+                        label = { Text(speed.label) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun QuadGrid(
+    modifier: Modifier,
+    state: QuadPlayerUiState,
+    viewModel: QuadPlayerViewModel,
+    onAddVideo: (Int) -> Unit,
+    onOpenMenu: (Int) -> Unit,
+    onSwitchAudio: (Int) -> Unit,
+    onShowProgress: (Int) -> Unit,
+    onSeek: (Int, Long) -> Unit,
+    visibleProgressSlot: Int,
+) {
+    Column(
+        modifier = modifier,
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+        ) {
+            QuadSlotContent(Modifier.weight(1f), state.slots[0], viewModel, onAddVideo, onOpenMenu, onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == 0)
+            QuadSlotContent(Modifier.weight(1f), state.slots[1], viewModel, onAddVideo, onOpenMenu, onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == 1)
+        }
+        Row(
+            modifier = Modifier.weight(1f),
+        ) {
+            QuadSlotContent(Modifier.weight(1f), state.slots[2], viewModel, onAddVideo, onOpenMenu, onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == 2)
+            QuadSlotContent(Modifier.weight(1f), state.slots[3], viewModel, onAddVideo, onOpenMenu, onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == 3)
+        }
+    }
+}
+
+@Composable
+private fun QuadSlotContent(
+    modifier: Modifier,
+    slot: QuadSlotUiState,
+    viewModel: QuadPlayerViewModel,
+    onAddVideo: (Int) -> Unit,
+    onOpenMenu: (Int) -> Unit,
+    onSwitchAudio: (Int) -> Unit,
+    onShowProgress: (Int) -> Unit,
+    onSeek: (Int, Long) -> Unit,
+    progressVisible: Boolean,
+) {
+    var isSeeking by remember(slot.index) { mutableStateOf(false) }
+    var sliderPosition by remember(slot.index) {
+        mutableLongStateOf(0L)
+    }
+    LaunchedEffect(slot.positionMs, slot.durationMs, isSeeking) {
+        if (!isSeeking) {
+            sliderPosition = slot.positionMs.coerceIn(0L, slot.durationMs.coerceAtLeast(0L))
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .background(Color.Black)
+            .combinedClickable(
+                onClick = {
+                    if (slot.video == null) {
+                        onAddVideo(slot.index)
+                    } else {
+                        onShowProgress(slot.index)
+                    }
+                },
+                onDoubleClick = {
+                    if (slot.video != null) {
+                        onSwitchAudio(slot.index)
+                    }
+                },
+                onLongClick = {
+                    if (slot.video != null) {
+                        onOpenMenu(slot.index)
+                    }
+                },
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        ) {
+            if (slot.video == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = stringResource(R.string.quad_tap_to_add),
+                        color = Color.White,
+                    )
+                }
+            } else {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { viewContext ->
+                        PlayerView(viewContext).apply {
+                            player = viewModel.controllerAt(slot.index).player
+                            useController = false
+                            resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            setShutterBackgroundColor(android.graphics.Color.BLACK)
+                            setBackgroundColor(android.graphics.Color.BLACK)
+                        }
+                    },
+                    update = { playerView ->
+                        playerView.player = viewModel.controllerAt(slot.index).player
+                        playerView.setShutterBackgroundColor(android.graphics.Color.BLACK)
+                        playerView.setBackgroundColor(android.graphics.Color.BLACK)
+                    },
+                )
+                if (slot.isAudioSource) {
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(8.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.95f),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.quad_current_audio),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+                if (progressVisible) {
+                    Slider(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        value = sliderPosition.toFloat(),
+                        onValueChange = {
+                            isSeeking = true
+                            sliderPosition = it.toLong()
+                        },
+                        valueRange = 0f..slot.durationMs.coerceAtLeast(1L).toFloat(),
+                        onValueChangeFinished = {
+                            isSeeking = false
+                            onSeek(slot.index, sliderPosition)
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SlotMenuDialog(
+    slot: QuadSlotUiState,
+    pendingSwapSource: Int?,
+    onDismiss: () -> Unit,
+    onRemove: () -> Unit,
+    onSwap: () -> Unit,
+    onReplace: () -> Unit,
+) {
+    val swapLabel = when (pendingSwapSource) {
+        null -> stringResource(R.string.quad_start_swap)
+        slot.index -> stringResource(R.string.quad_cancel_swap)
+        else -> stringResource(R.string.quad_complete_swap)
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(slot.video?.displayName ?: stringResource(R.string.quad_slot_actions)) },
+        text = {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item {
+                    Text(stringResource(R.string.quad_slot_label, slot.index + 1))
+                }
+                item {
+                    TextButton(onClick = onReplace) {
+                        Text(stringResource(R.string.quad_replace_video))
+                    }
+                }
+                item {
+                    TextButton(onClick = onSwap) {
+                        Text(swapLabel)
+                    }
+                }
+                item {
+                    TextButton(onClick = onRemove) {
+                        Text(stringResource(R.string.quad_remove_video))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_done))
+            }
+        },
+    )
+}

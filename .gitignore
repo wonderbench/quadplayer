@@ -1,0 +1,22 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+/build
+/captures
+.DS_Store
+.externalNativeBuild
+.cxx
+
+# Generated Android build and local diagnostic files
+**/build/
+.kotlin/
+hs_err_pid*.log
+replay_pid*.log
+/tmp_media3/
+/tmp_media3_exoplayer.aar

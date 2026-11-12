@@ -1,0 +1,115 @@
+package com.quadplayer.core.data
+
+import android.content.ContentUris
+import android.content.Context
+import android.media.MediaMetadataRetriever
+import android.net.Uri
+import android.provider.MediaStore
+import android.provider.OpenableColumns
+import com.quadplayer.core.database.VideoEntity
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import javax.inject.Inject
+import javax.inject.Singleton
+
+@Singleton
+class MediaStoreVideoScanner @Inject constructor(
+    @ApplicationContext private val context: Context,
+) {
+    suspend fun scanVideos(): List<VideoEntity> = withContext(Dispatchers.IO) {
+        val projection = buildList {
+            add(MediaStore.Video.Media._ID)
+            add(MediaStore.Video.Media.DISPLAY_NAME)
+            add(MediaStore.Video.Media.DURATION)
+            add(MediaStore.Video.Media.SIZE)
+            add(MediaStore.Video.Media.WIDTH)
+            add(MediaStore.Video.Media.HEIGHT)
+            add(MediaStore.Video.Media.MIME_TYPE)
+            add(MediaStore.Video.Media.DATE_MODIFIED)
+            add(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
+            add(MediaStore.Video.Media.RELATIVE_PATH)
+            add(MediaStore.MediaColumns.DATA)
+        }.toTypedArray()
+
+        context.contentResolver.query(
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+            projection,
+            "${MediaStore.Video.Media.SIZE} > 0",
+            null,
+            "${MediaStore.Video.Media.DATE_MODIFIED} DESC",
+        )?.use { cursor ->
+            val idIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+            val nameIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
+            val durationIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
+            val sizeIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
+            val widthIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.WIDTH)
+            val heightIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.HEIGHT)
+            val mimeIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE)
+            val modifiedIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_MODIFIED)
+            val bucketIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.BUCKET_DISPLAY_NAME)
+            val relativeIndex = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.RELATIVE_PATH)
+            val dataIndex = cursor.getColumnIndex(MediaStore.MediaColumns.DATA)
+
+            buildList {
+                while (cursor.moveToNext()) {
+                    val mediaId = cursor.getLong(idIndex)
+                    val uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, mediaId)
+                    val folderPath = cursor.getString(relativeIndex).orEmpty()
+                    val folderName = cursor.getString(bucketIndex).orEmpty().ifBlank {
+                        folderPath.trimEnd('/').substringAfterLast('/', "本地视频")
+                    }
+                    add(
+                        VideoEntity(
+                            uriString = uri.toString(),
+                            displayName = cursor.getString(nameIndex) ?: "视频 $mediaId",
+                            folderPath = folderPath.ifBlank { "storage" },
+                            folderName = folderName.ifBlank { "本地视频" },
+                            durationMs = cursor.getLong(durationIndex).coerceAtLeast(0L),
+                            sizeBytes = cursor.getLong(sizeIndex).coerceAtLeast(0L),
+                            width = cursor.getInt(widthIndex),
+                            height = cursor.getInt(heightIndex),
+                            mimeType = cursor.getString(mimeIndex) ?: "video/*",
+                            dateModified = cursor.getLong(modifiedIndex),
+                            localPath = if (dataIndex >= 0) cursor.getString(dataIndex) else null,
+                        ),
+                    )
+                }
+            }
+        }.orEmpty()
+    }
+
+    suspend fun inspectImportedVideo(uri: Uri): VideoEntity? = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val metadata = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)
+            ?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val name = cursor.getString(cursor.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME))
+                    val size = cursor.getLong(cursor.getColumnIndexOrThrow(OpenableColumns.SIZE))
+                    name to size
+                } else {
+                    null
+                }
+            } ?: return@withContext null
+
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(context, uri)
+            VideoEntity(
+                uriString = uri.toString(),
+                displayName = metadata.first,
+                folderPath = "imported",
+                folderName = "手动导入",
+                durationMs = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L,
+                sizeBytes = metadata.second,
+                width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0,
+                height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0,
+                mimeType = resolver.getType(uri) ?: "video/*",
+                dateModified = System.currentTimeMillis(),
+                isManuallyAdded = true,
+            )
+        } finally {
+            retriever.release()
+        }
+    }
+}

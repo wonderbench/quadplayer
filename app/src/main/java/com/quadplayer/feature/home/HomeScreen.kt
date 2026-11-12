@@ -1,0 +1,433 @@
+package com.quadplayer.feature.home
+
+import android.Manifest
+import android.os.Build
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.foundation.Image
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
+import com.quadplayer.R
+import com.quadplayer.core.model.PlaylistSummary
+import com.quadplayer.core.model.RecentPlayback
+import com.quadplayer.core.model.VideoFile
+import com.quadplayer.core.util.formatDuration
+
+@OptIn(ExperimentalPermissionsApi::class)
+@Composable
+fun HomeScreen(
+    viewModel: HomeViewModel,
+    onOpenVideo: (Long) -> Unit,
+    onOpenPlaylist: (Long) -> Unit,
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val permission = rememberPermissionState(
+        permission = if (Build.VERSION.SDK_INT >= 33) {
+            Manifest.permission.READ_MEDIA_VIDEO
+        } else {
+            Manifest.permission.READ_EXTERNAL_STORAGE
+        },
+    )
+    var selectedTab by remember { mutableIntStateOf(0) }
+    var playlistTarget by remember { mutableStateOf<VideoFile?>(null) }
+
+    LaunchedEffect(permission.status.isGranted) {
+        if (permission.status.isGranted) {
+            viewModel.refresh()
+        }
+    }
+
+    if (!permission.status.isGranted) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(stringResource(R.string.home_permission_required))
+                Button(onClick = { permission.launchPermissionRequest() }) {
+                    Text(stringResource(R.string.home_grant_permission))
+                }
+            }
+        }
+        return
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Image(
+                painter = painterResource(R.drawable.app_logo),
+                contentDescription = stringResource(R.string.app_name),
+                modifier = Modifier.size(56.dp),
+                contentScale = ContentScale.Fit,
+            )
+            Text(
+                text = stringResource(R.string.app_name),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = stringResource(R.string.home_tab_library),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = uiState.searchQuery,
+            onValueChange = viewModel::updateSearchQuery,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.home_search_label)) },
+        )
+        Spacer(Modifier.height(12.dp))
+
+        val tabs = listOf(
+            stringResource(R.string.home_tab_library),
+            stringResource(R.string.home_tab_recent),
+            stringResource(R.string.home_tab_favorites),
+            stringResource(R.string.home_tab_playlists),
+        )
+        TabRow(selectedTabIndex = selectedTab) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    selected = selectedTab == index,
+                    onClick = { selectedTab = index },
+                    text = { Text(title) },
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+
+        when (selectedTab) {
+            0 -> VideoList(
+                videos = uiState.videos,
+                emptyText = stringResource(R.string.home_empty_videos),
+                onOpenVideo = onOpenVideo,
+                onToggleFavorite = viewModel::toggleFavorite,
+                onAddToPlaylist = { playlistTarget = it },
+            )
+
+            1 -> RecentList(
+                items = uiState.recent,
+                emptyText = stringResource(R.string.home_empty_recent),
+                onOpenVideo = onOpenVideo,
+            )
+
+            2 -> VideoList(
+                videos = uiState.favorites,
+                emptyText = stringResource(R.string.home_empty_favorites),
+                onOpenVideo = onOpenVideo,
+                onToggleFavorite = viewModel::toggleFavorite,
+                onAddToPlaylist = { playlistTarget = it },
+            )
+
+            else -> PlaylistList(
+                playlists = uiState.playlists,
+                emptyText = stringResource(R.string.home_empty_playlists),
+                onOpenPlaylist = onOpenPlaylist,
+                onCreatePlaylist = viewModel::createPlaylist,
+            )
+        }
+    }
+
+    playlistTarget?.let { target ->
+        PlaylistPickerDialog(
+            playlists = uiState.playlists,
+            onDismiss = { playlistTarget = null },
+            onSelect = { playlistId ->
+                viewModel.addVideoToPlaylist(playlistId, target.id)
+                playlistTarget = null
+            },
+            onCreate = viewModel::createPlaylist,
+        )
+    }
+}
+
+@Composable
+private fun VideoList(
+    videos: List<VideoFile>,
+    emptyText: String,
+    onOpenVideo: (Long) -> Unit,
+    onToggleFavorite: (Long) -> Unit,
+    onAddToPlaylist: (VideoFile) -> Unit,
+) {
+    if (videos.isEmpty()) {
+        EmptyStateText(emptyText)
+        return
+    }
+
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(videos, key = { it.id }) { video ->
+            Card(onClick = { onOpenVideo(video.id) }) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(video.displayName, maxLines = 2, style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        text = stringResource(
+                            R.string.common_folder_duration,
+                            video.folderName,
+                            formatDuration(video.durationMs),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { onOpenVideo(video.id) }) {
+                            Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.common_play))
+                        }
+                        IconButton(onClick = { onToggleFavorite(video.id) }) {
+                            Icon(
+                                imageVector = if (video.isFavorite) {
+                                    Icons.Rounded.Favorite
+                                } else {
+                                    Icons.Rounded.FavoriteBorder
+                                },
+                                contentDescription = stringResource(R.string.home_tab_favorites),
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.home_add_to_playlist),
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { onAddToPlaylist(video) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentList(
+    items: List<RecentPlayback>,
+    emptyText: String,
+    onOpenVideo: (Long) -> Unit,
+) {
+    if (items.isEmpty()) {
+        EmptyStateText(emptyText)
+        return
+    }
+
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items(items, key = { it.video.id }) { item ->
+            Card(onClick = { onOpenVideo(item.video.id) }) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(item.video.displayName)
+                    Text(
+                        text = stringResource(R.string.home_resume_from, formatDuration(item.lastPositionMs)),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistList(
+    playlists: List<PlaylistSummary>,
+    emptyText: String,
+    onOpenPlaylist: (Long) -> Unit,
+    onCreatePlaylist: (String) -> Unit,
+) {
+    var creating by remember { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(R.string.home_my_playlists), style = MaterialTheme.typography.titleMedium)
+            AssistChip(onClick = { creating = true }, label = { Text(stringResource(R.string.home_new_playlist)) })
+        }
+        if (playlists.isEmpty()) {
+            EmptyStateText(emptyText)
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(playlists, key = { it.id }) { playlist ->
+                    Card(onClick = { onOpenPlaylist(playlist.id) }) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                        ) {
+                            Text(playlist.name, style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                stringResource(R.string.common_video_count, playlist.videoCount),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (creating) {
+        var text by remember { mutableStateOf("") }
+        AlertDialog(
+            onDismissRequest = { creating = false },
+            title = { Text(stringResource(R.string.home_create_playlist)) },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text(stringResource(R.string.home_playlist_name)) },
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (text.isNotBlank()) {
+                            onCreatePlaylist(text)
+                            creating = false
+                        }
+                    },
+                ) { Text(stringResource(R.string.common_create)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { creating = false }) { Text(stringResource(R.string.common_cancel)) }
+            },
+        )
+    }
+}
+
+@Composable
+private fun PlaylistPickerDialog(
+    playlists: List<PlaylistSummary>,
+    onDismiss: () -> Unit,
+    onSelect: (Long) -> Unit,
+    onCreate: (String) -> Unit,
+) {
+    var newPlaylistName by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.home_add_to_playlist_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (playlists.isEmpty()) {
+                    Text(stringResource(R.string.home_empty_playlists))
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 220.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.home_existing_playlists),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        playlists.forEach { playlist ->
+                            Text(
+                                text = playlist.name,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSelect(playlist.id) }
+                                    .padding(vertical = 4.dp),
+                            )
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = newPlaylistName,
+                    onValueChange = { newPlaylistName = it },
+                    label = { Text(stringResource(R.string.home_create_playlist)) },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (newPlaylistName.isNotBlank()) {
+                        onCreate(newPlaylistName)
+                        newPlaylistName = ""
+                    }
+                },
+            ) { Text(stringResource(R.string.common_create)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) }
+        },
+    )
+}
+
+@Composable
+private fun EmptyStateText(text: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
