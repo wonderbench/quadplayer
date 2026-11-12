@@ -77,6 +77,8 @@ class PlaybackSession(
     val controller: PlayerController
         get() = playerController
 
+    internal fun currentVideoUri(): String? = video.value?.uriString
+
     init {
         viewModelScope.launch {
             settingsRepository.settings.collect { settings ->
