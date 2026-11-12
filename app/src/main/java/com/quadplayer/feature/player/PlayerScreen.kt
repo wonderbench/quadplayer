@@ -582,6 +582,7 @@ private fun PlayerSurface(
             },
             update = { playerView ->
                 playerView.player = viewModel.controller.player
+                playerView.keepScreenOn = state.playerState.isPlaying
                 playerView.resizeMode = resizeMode
                 playerView.setShutterBackgroundColor(android.graphics.Color.BLACK)
                 playerView.setBackgroundColor(android.graphics.Color.BLACK)
