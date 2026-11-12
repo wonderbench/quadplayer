@@ -121,6 +121,7 @@
     <string name="player_track_fallback">轨道 %1$d</string>
 
     <string name="quad_title">四宫格播放</string>
+    <string name="quad_hide_controls">收起</string>
     <string name="player_brightness">亮度</string>
     <string name="player_volume">音量</string>
     <string name="player_hold_speed">按住 2.0x 加速</string>

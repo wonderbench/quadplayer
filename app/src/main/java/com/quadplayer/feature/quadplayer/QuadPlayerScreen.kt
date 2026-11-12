@@ -14,12 +14,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -136,12 +134,7 @@ fun QuadPlayerScreen(
             .background(Color.Black),
     ) {
         QuadGrid(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(
-                    top = if (controlsVisible) 92.dp else 0.dp,
-                    bottom = if (controlsVisible) 124.dp else 0.dp,
-                ),
+            modifier = Modifier.fillMaxSize(),
             state = state,
             viewModel = viewModel,
             onAddVideo = { slotIndex ->
@@ -176,6 +169,7 @@ fun QuadPlayerScreen(
             warningMessage = state.warningMessage,
             pendingSwapSource = state.pendingSwapSource,
             controlsVisible = controlsVisible,
+            onExit = onBack,
             onHideControls = { controlsVisible = false },
             onDismissWarning = viewModel::clearWarning,
             onShowControls = {
@@ -258,6 +252,7 @@ private fun TopOverlay(
     warningMessage: String?,
     pendingSwapSource: Int?,
     controlsVisible: Boolean,
+    onExit: () -> Unit,
     onHideControls: () -> Unit,
     onDismissWarning: () -> Unit,
     onShowControls: () -> Unit,
@@ -278,16 +273,14 @@ private fun TopOverlay(
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(onClick = onHideControls) {
-                        Text(stringResource(R.string.common_close))
-                    }
+                    TextButton(onClick = onExit) { Text(stringResource(R.string.common_back)) }
                     Text(
                         text = stringResource(R.string.quad_title),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.titleMedium,
                         textAlign = TextAlign.Center,
                     )
-                    Spacer(modifier = Modifier.width(64.dp))
+                    TextButton(onClick = onHideControls) { Text(stringResource(R.string.quad_hide_controls)) }
                 }
             }
         } else {
@@ -356,18 +349,14 @@ private fun BottomOverlay(
         tonalElevation = 6.dp,
         color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
                 DepthChip(
                     onClick = {
                         onInteraction()
@@ -389,14 +378,6 @@ private fun BottomOverlay(
                     },
                     label = { Text(stringResource(R.string.quad_mute_all)) },
                 )
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
                 Text(stringResource(R.string.quad_speed_title), style = MaterialTheme.typography.labelLarge)
                 PlaybackSpeed.entries.forEach { speed ->
                     DepthChip(
@@ -407,7 +388,6 @@ private fun BottomOverlay(
                         label = { Text(speed.label) },
                     )
                 }
-            }
         }
     }
 }
