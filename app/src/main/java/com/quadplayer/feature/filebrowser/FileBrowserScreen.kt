@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quadplayer.core.ui.rememberMediaAccess
+import com.quadplayer.core.ui.VideoThumbnail
 import com.quadplayer.R
 import com.quadplayer.core.model.PlaylistSummary
 import com.quadplayer.core.model.VideoFile
@@ -375,8 +376,10 @@ private fun VideoRow(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.Top,
         ) {
+            VideoThumbnail(video)
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
