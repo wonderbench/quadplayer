@@ -14,6 +14,8 @@ import java.io.File
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
@@ -60,22 +62,27 @@ class PlayerQueueIntegrationTest {
             override suspend fun removeVideo(playlistId: Long, videoId: Long) {}
             override suspend fun swapVideos(playlistId: Long, firstVideoId: Long, secondVideoId: Long) {}
         }
+        val positions = ConcurrentHashMap<Long, Long>()
         val history = object : HistoryRepository {
             override fun observeRecent(limit: Int): Flow<List<RecentPlayback>> = flowOf(emptyList())
-            override suspend fun getResumePosition(videoId: Long) = 0L
-            override suspend fun recordPlayback(videoId: Long, positionMs: Long) {}
+            override suspend fun getResumePosition(videoId: Long) = positions[videoId] ?: 0L
+            override suspend fun recordPlayback(videoId: Long, positionMs: Long) { positions[videoId] = positionMs }
         }
+        val historyQueue = HistoryWriteQueue(history)
+        val settings = DataStoreSettingsRepository(context)
+        settings.setAutoResume(true)
         val store = ViewModelStore()
-        val vm = withContext(Dispatchers.Main) {
+        suspend fun createViewModel(target: ViewModelStore): PlayerViewModel = withContext(Dispatchers.Main) {
             val factory = object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T = PlayerViewModel(
                     context, SavedStateHandle(mapOf("videoId" to 2L, "playlistId" to 1L)), videoRepo,
-                    playlistRepo, HistoryWriteQueue(history), DataStoreSettingsRepository(context),
+                    playlistRepo, historyQueue, settings,
                 ) as T
             }
-            ViewModelProvider(store, factory)[PlayerViewModel::class.java]
+            ViewModelProvider(target, factory)[PlayerViewModel::class.java]
         }
+        val vm = createViewModel(store)
         try {
             val initial = withTimeout(15000) { vm.state.first { it.video?.id == 2L && it.playerState.durationMs > 0 } }
             assertTrue(initial.queue.hasPrevious && initial.queue.hasNext)
@@ -89,10 +96,21 @@ class PlayerQueueIntegrationTest {
             withContext(Dispatchers.Main) { vm.toggleRepeatOne(); vm.seekTo(9999) }
             val advanced = withTimeout(15000) { vm.state.first { it.video?.id == 3L } }
             assertEquals(2, advanced.queue.index)
+            assertEquals(0L, historyQueue.getResumePosition(2))
             unavailable += 2L
             withContext(Dispatchers.Main) { vm.previous() }
             val skipped = withTimeout(15000) { vm.state.first { it.video?.id == 1L && it.queue.index == 0 } }
             assertFalse(skipped.queue.hasPrevious)
+            withContext(Dispatchers.Main) { store.clear() }
+            unavailable.clear()
+            val reopenedStore = ViewModelStore()
+            try {
+                val reopened = createViewModel(reopenedStore)
+                withTimeout(15000) { reopened.state.first { it.video?.id == 2L && it.playerState.durationMs > 0 } }
+                delay(750)
+                assertEquals(2L, reopened.state.value.video?.id)
+                assertTrue(reopened.state.value.playerState.currentPositionMs < 10000)
+            } finally { withContext(Dispatchers.Main) { reopenedStore.clear() } }
         } finally {
             withContext(Dispatchers.Main) { store.clear() }
             file.delete()
