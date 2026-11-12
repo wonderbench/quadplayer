@@ -34,17 +34,6 @@
     </issue>
 
     <issue
-        id="GradleDependency"
-        message="A newer version of androidx.test:runner than 1.5.0 is available: 1.7.0"
-        errorLine1="androidxTestRunner = &quot;1.5.0&quot;"
-        errorLine2="                     ~~~~~~~">
-        <location
-            file="../gradle/libs.versions.toml"
-            line="22"
-            column="22"/>
-    </issue>
-
-    <issue
         id="ModifierFactoryExtensionFunction"
         message="Modifier factory functions should be extensions on Modifier"
         errorLine1="internal fun quadSlotInteraction("
