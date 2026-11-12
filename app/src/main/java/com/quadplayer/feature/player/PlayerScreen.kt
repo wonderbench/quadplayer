@@ -130,6 +130,7 @@ fun PlayerScreen(
 
     DisposableEffect(lifecycleOwner, state.settings.backgroundPlayback) {
         val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) viewModel.onScreenStarted()
             if (event == Lifecycle.Event.ON_STOP) {
                 viewModel.onBackgroundStateChanged(
                     allowBackgroundPlayback = state.settings.backgroundPlayback,

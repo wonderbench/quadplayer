@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.media3.common.C
+import androidx.media3.common.AudioAttributes
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
@@ -64,6 +66,7 @@ data class PlayerUiState(
 @OptIn(UnstableApi::class)
 class PlayerController(
     private val context: Context,
+    private val handleAudioFocus: Boolean = false,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val dataSourceFactory = DefaultDataSource.Factory(context)
@@ -98,6 +101,7 @@ class PlayerController(
     private var playerInternal: ExoPlayer = buildPlayer(currentSettings.decoderMode)
     val player: ExoPlayer
         get() = playerInternal
+    var onPlayerRebuilt: ((ExoPlayer) -> Unit)? = null
 
     private var progressJob: Job? = null
     private var currentVideo: VideoFile? = null
@@ -247,6 +251,8 @@ class PlayerController(
 
         return ExoPlayer.Builder(context, renderersFactory)
             .setTrackSelector(trackSelector)
+            .setAudioAttributes(AudioAttributes.DEFAULT, handleAudioFocus)
+            .setHandleAudioBecomingNoisy(handleAudioFocus)
             .build()
     }
 
@@ -255,6 +261,7 @@ class PlayerController(
             val oldPlayer = playerInternal
             val previousPosition = _uiState.value.currentPositionMs
             val previousVolume = oldPlayer.volume
+            val previousRepeatMode = oldPlayer.repeatMode
             val previousPlayWhenReady = oldPlayer.playWhenReady
             val previousTrackParameters = oldPlayer.trackSelectionParameters
 
@@ -262,6 +269,7 @@ class PlayerController(
             playerInternal = newPlayer
             newPlayer.addListener(playerListener)
             newPlayer.volume = previousVolume
+            newPlayer.repeatMode = previousRepeatMode
             newPlayer.trackSelectionParameters = previousTrackParameters
 
             val video = currentVideo
@@ -273,6 +281,7 @@ class PlayerController(
                 newPlayer.playWhenReady = previousPlayWhenReady
             }
 
+            onPlayerRebuilt?.invoke(newPlayer)
             oldPlayer.removeListener(playerListener)
             oldPlayer.release()
             updateStateFromPlayer()
@@ -306,6 +315,7 @@ class PlayerController(
         .createMediaSource(
             MediaItem.Builder()
                 .setUri(videoUri)
+                .setMediaMetadata(MediaMetadata.Builder().setTitle(currentVideo?.displayName).build())
                 .setSubtitleConfigurations(subtitleUri?.let { listOf(buildSubtitleConfiguration(it)) } ?: emptyList())
                 .build(),
         ).let { videoSource ->
