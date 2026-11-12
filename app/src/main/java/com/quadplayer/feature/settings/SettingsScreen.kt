@@ -18,7 +18,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.quadplayer.ui.theme.TrackDivider
 import androidx.compose.material3.Icon
-import com.quadplayer.ui.theme.DepthChip
+import com.quadplayer.ui.theme.DepthChoiceChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -96,7 +96,8 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 listOf(5, 10, 15, 30).forEach { seconds ->
-                    DepthChip(
+                    DepthChoiceChip(
+                        selected = seconds == settings.doubleTapSeekSeconds,
                         onClick = { viewModel.setDoubleTapSeconds(seconds) },
                         label = { Text(stringResource(R.string.settings_seek_seconds, seconds)) },
                     )
@@ -469,11 +470,11 @@ private fun <T> ChipRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         values.forEach { value ->
-            DepthChip(
+            DepthChoiceChip(
+                selected = value == selected,
                 onClick = { onClick(value) },
                 label = {
-                    val text = label(value)
-                    Text(if (value == selected) "✓ $text" else text)
+                    Text(label(value))
                 },
             )
         }

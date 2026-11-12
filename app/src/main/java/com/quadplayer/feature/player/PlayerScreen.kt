@@ -40,7 +40,7 @@ import androidx.compose.material.icons.rounded.ScreenRotationAlt
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.AlertDialog
-import com.quadplayer.ui.theme.DepthChip
+import com.quadplayer.ui.theme.DepthChoiceChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import com.quadplayer.ui.theme.RoundIconButton
@@ -335,7 +335,7 @@ fun PlayerScreen(
                                     DropdownMenuItem(text = { Text(stringResource(if (state.queue.repeatOne) R.string.player_repeat_one_on else R.string.player_repeat_one_off)) }, onClick = { showMore = false; viewModel.toggleRepeatOne() })
                                     DropdownMenuItem(text = { Text(stringResource(R.string.player_aspect)) }, onClick = { showMore = false; viewModel.cycleAspectMode() })
                                     PlaybackSpeed.entries.forEach { speed ->
-                                        DropdownMenuItem(text = { Text(speed.label) }, onClick = { showMore = false; viewModel.setSpeed(speed) })
+                                        DropdownMenuItem(text = { Text(if (speed == state.playerState.playbackSpeed) "✓ ${speed.label}" else speed.label) }, onClick = { showMore = false; viewModel.setSpeed(speed) })
                                     }
                                     if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                                         DropdownMenuItem(text = { Text(stringResource(R.string.player_pip)) }, onClick = {
@@ -419,7 +419,8 @@ fun PlayerScreen(
                             Text(stringResource(if (state.queue.repeatOne) R.string.player_repeat_one_on else R.string.player_repeat_one_off))
                         }
                         PlaybackSpeed.entries.forEach { speed ->
-                            DepthChip(
+                            DepthChoiceChip(
+                                selected = speed == state.playerState.playbackSpeed,
                                 onClick = { viewModel.setSpeed(speed) },
                                 label = { Text(speed.label) },
                             )

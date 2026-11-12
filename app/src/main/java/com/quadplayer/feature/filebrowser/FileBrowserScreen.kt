@@ -21,6 +21,7 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AlertDialog
 import com.quadplayer.ui.theme.DepthChip
+import com.quadplayer.ui.theme.DepthChoiceChip
 import androidx.compose.material3.Button
 import com.quadplayer.ui.theme.TrackDivider
 import com.quadplayer.ui.theme.DepthCard
@@ -154,7 +155,8 @@ fun FileBrowserScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             FileBrowserSortMode.entries.forEach { mode ->
-                DepthChip(
+                DepthChoiceChip(
+                    selected = uiState.sortMode == mode,
                     onClick = { viewModel.setSortMode(mode) },
                     label = {
                         Text(
@@ -166,7 +168,6 @@ fun FileBrowserScreen(
                             },
                         )
                     },
-                    enabled = uiState.sortMode != mode,
                 )
             }
         }
