@@ -17,17 +17,13 @@ import javax.inject.Singleton
 sealed class VideoCapabilityWarning {
     data object NoSupportedDecoder : VideoCapabilityWarning()
     data object SoftwareOnly : VideoCapabilityWarning()
-    data class ConcurrentLimit(val count: Int, val reportedLimit: Int) : VideoCapabilityWarning()
 }
 
-internal data class DecoderSupport(val hardware: Boolean, val maxInstances: Int?)
+internal data class DecoderSupport(val hardware: Boolean)
 
-internal fun assessDecoderSupport(supported: List<DecoderSupport>, activeCount: Int): VideoCapabilityWarning? {
+internal fun assessDecoderSupport(supported: List<DecoderSupport>): VideoCapabilityWarning? {
     if (supported.isEmpty()) return VideoCapabilityWarning.NoSupportedDecoder
-    val hardware = supported.filter { it.hardware }
-    if (hardware.isEmpty()) return VideoCapabilityWarning.SoftwareOnly
-    val limit = hardware.mapNotNull { it.maxInstances?.takeIf { n -> n > 0 } }.maxOrNull()
-    return if (limit != null && activeCount > limit) VideoCapabilityWarning.ConcurrentLimit(activeCount, limit) else null
+    return if (supported.none { it.hardware }) VideoCapabilityWarning.SoftwareOnly else null
 }
 
 @Singleton
@@ -71,7 +67,7 @@ class DeviceCapabilityChecker @Inject constructor(@ApplicationContext private va
     }
 
     /** Returns a warning only when the actual video track could be inspected. Call off the main thread. */
-    fun inspectVideo(uri: Uri, activeCount: Int): VideoCapabilityWarning? {
+    fun inspectVideo(uri: Uri): VideoCapabilityWarning? {
         val extractor = MediaExtractor()
         return try {
             extractor.setDataSource(context, uri, null)
@@ -84,9 +80,7 @@ class DeviceCapabilityChecker @Inject constructor(@ApplicationContext private va
                 val caps = runCatching { info.getCapabilitiesForType(type) }.getOrNull() ?: return@mapNotNull null
                 if (runCatching { caps.isFormatSupported(format) }.getOrDefault(false)) info to caps else null
             }
-            assessDecoderSupport(supported.map { (info, caps) ->
-                DecoderSupport(isHardware(info), runCatching { caps.maxSupportedInstances }.getOrNull())
-            }, activeCount)
+            assessDecoderSupport(supported.map { (info, _) -> DecoderSupport(isHardware(info)) })
         } catch (_: Exception) {
             null
         } finally { extractor.release() }

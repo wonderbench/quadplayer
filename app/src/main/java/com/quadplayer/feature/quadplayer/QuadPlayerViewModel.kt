@@ -156,18 +156,22 @@ class QuadPlayerViewModel @Inject constructor(
     fun addVideo(slotIndex: Int, uri: Uri) {
         viewModelScope.launch {
             val video = videoRepository.importVideo(uri) ?: return@launch
-            engine.load(slotIndex, video)
+            loadAndInspect(slotIndex, video)
             val settings = uiState.value.settings
             if (audioSourceManager.currentAudioSource.value == -1) {
                 audioSourceManager.switchTo(slotIndex, volumeTargets, settings.crossfadeAudioSwitching)
             }
-            val activeCount = engine.snapshot().count { it != null }
-            val warning = withContext(Dispatchers.IO) { capabilityChecker.inspectVideo(video.uri, activeCount) }
+        }
+    }
+
+    private suspend fun loadAndInspect(slotIndex: Int, video: com.quadplayer.core.model.VideoFile) {
+        engine.load(slotIndex, video)
+        viewModelScope.launch {
+            val warning = withContext(Dispatchers.IO) { capabilityChecker.inspectVideo(video.uri) }
             if (engine.snapshot().getOrNull(slotIndex)?.uri == video.uriString) {
                 when (warning) {
                     VideoCapabilityWarning.NoSupportedDecoder -> warningMessage.value = context.getString(R.string.quad_warning_format)
                     VideoCapabilityWarning.SoftwareOnly -> warningMessage.value = context.getString(R.string.quad_warning_software)
-                    is VideoCapabilityWarning.ConcurrentLimit -> warningMessage.value = context.getString(R.string.quad_warning_concurrency, warning.count, warning.reportedLimit)
                     null -> Unit
                 }
             }
@@ -271,7 +275,7 @@ class QuadPlayerViewModel @Inject constructor(
                             if (!canReadMedia(context, uri)) { failed = true; return@forEachIndexed }
                             val video = videoRepository.importVideo(uri)
                             if (video == null) { failed = true; return@forEachIndexed }
-                            engine.load(index, video)
+                            loadAndInspect(index, video)
                             engine.seekSlot(index, slot.positionMs)
                             engine.setSlotSpeed(index, PlaybackSpeed.fromValue(slot.speed))
                             if (!slot.playing) engine.controllerAt(index)?.pause()
