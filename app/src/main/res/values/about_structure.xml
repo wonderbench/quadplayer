@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The app and generated About.md use these groups. First item is the group title. -->
+    <string-array name="about_headings">
+        <item>@string/about_detail_41</item><item>@string/about_detail_42</item>
+        <item>@string/about_detail_43</item><item>@string/about_detail_44</item>
+    </string-array>
+    <string-array name="about_intro"><item>@string/about_detail_01</item></string-array>
+    <string-array name="about_quad_features">
+        <item>@string/about_detail_02</item><item>@string/about_detail_03</item>
+        <item>@string/about_detail_04</item><item>@string/about_detail_05</item>
+        <item>@string/about_detail_06</item><item>@string/about_detail_07</item>
+        <item>@string/about_detail_08</item><item>@string/about_detail_45</item>
+    </string-array>
+    <string-array name="about_single_features">
+        <item>@string/about_detail_09</item><item>@string/about_detail_10</item>
+        <item>@string/about_detail_11</item><item>@string/about_detail_12</item>
+        <item>@string/about_detail_13</item><item>@string/about_detail_14</item>
+        <item>@string/about_detail_46</item>
+    </string-array>
+    <string-array name="about_library_features">
+        <item>@string/about_detail_15</item><item>@string/about_detail_16</item>
+        <item>@string/about_detail_17</item><item>@string/about_detail_18</item>
+        <item>@string/about_detail_47</item>
+    </string-array>
+    <string-array name="about_preferences">
+        <item>@string/about_detail_19</item><item>@string/about_detail_20</item>
+        <item>@string/about_detail_21</item><item>@string/about_detail_22</item>
+        <item>@string/about_detail_48</item>
+    </string-array>
+    <array name="about_feature_groups">
+        <item>@array/about_quad_features</item><item>@array/about_single_features</item>
+        <item>@array/about_library_features</item><item>@array/about_preferences</item>
+    </array>
+    <!-- Requirement entries alternate label and value; the final item is the hint. -->
+    <string-array name="about_requirements">
+        <item>@string/about_detail_23</item><item>@string/about_detail_24</item>
+        <item>@string/about_detail_25</item><item>@string/about_detail_26</item>
+        <item>@string/about_detail_27</item><item>@string/about_detail_28</item>
+        <item>@string/about_detail_29</item>
+    </string-array>
+    <string-array name="about_getting_started">
+        <item>@string/about_detail_30</item><item>@string/about_detail_31</item>
+        <item>@string/about_detail_32</item><item>@string/about_detail_33</item>
+        <item>@string/about_detail_34</item>
+    </string-array>
+    <string-array name="about_quad_guide">
+        <item>@string/about_detail_35</item><item>@string/about_detail_36</item>
+        <item>@string/about_detail_37</item><item>@string/about_detail_38</item>
+        <item>@string/about_detail_39</item><item>@string/about_detail_40</item>
+    </string-array>
+    <array name="about_guide_groups">
+        <item>@array/about_getting_started</item><item>@array/about_quad_guide</item>
+    </array>
+</resources>

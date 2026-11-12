@@ -261,7 +261,7 @@
     <string name="about_detail_04">双击画面或点击音频按钮切换当前音频源，其余画面自动静音。</string>
     <string name="about_detail_05">支持音频交叉淡入淡出，切换听感更平滑。</string>
     <string name="about_detail_06">支持全部播放/暂停、同步进度、统一调速等全局控制。</string>
-    <string name="about_detail_07">每个视频可单独拖拽进度、暂停或更换内容。</string>
+    <string name="about_detail_07">每个视频可单独拖拽进度、暂停、更换内容或设置整片和 A–B 循环；区间循环边界不保证逐帧精度。</string>
     <string name="about_detail_08">长按画面打开菜单，可选择交换画面位置。</string>
     <string name="about_detail_09">单视频播放</string>
     <string name="about_detail_10">支持播放、暂停、进度拖动和缓冲提示。</string>
@@ -299,4 +299,8 @@
     <string name="about_detail_42">核心功能</string>
     <string name="about_detail_43">系统要求</string>
     <string name="about_detail_44">使用指南</string>
+    <string name="about_detail_45">支持保存和恢复命名四格预设；预设不保存循环设置，失效片源需重新选择。</string>
+    <string name="about_detail_46">支持播放队列和系统媒体控件，并可按视频记住音轨和字幕选择。</string>
+    <string name="about_detail_47">可隐藏手动导入的条目，并在确认影响后管理保留的文件授权；原文件不会被删除。</string>
+    <string name="about_detail_48">可设置字幕大小、颜色和背景，并查看第三方许可声明。</string>
 </resources>

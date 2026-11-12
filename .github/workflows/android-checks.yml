@@ -25,7 +25,7 @@ jobs:
             "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
           fi
       - name: Build, test and lint
-        run: bash ./gradlew :app:verifyThirdPartyNotices :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --no-daemon
+        run: bash ./gradlew :app:verifyThirdPartyNotices :app:verifyAboutDocs :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --no-daemon
       - name: Print Lint report after a failure
         if: failure()
         run: |
