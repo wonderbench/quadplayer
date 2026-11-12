@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,13 +22,14 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
+import com.quadplayer.ui.theme.DepthChip
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import com.quadplayer.ui.theme.DepthCard
+import com.quadplayer.ui.theme.TrackDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.quadplayer.ui.theme.RoundIconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import com.quadplayer.ui.theme.QuietTextField
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -107,7 +109,7 @@ fun HomeScreen(
             Text(
                 text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.SemiBold,
             )
         }
         if (permission.partial) {
@@ -116,11 +118,11 @@ fun HomeScreen(
         Spacer(Modifier.height(8.dp))
         Text(
             text = stringResource(R.string.home_tab_library),
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
+        QuietTextField(
             value = uiState.searchQuery,
             onValueChange = viewModel::updateSearchQuery,
             modifier = Modifier.fillMaxWidth(),
@@ -134,12 +136,19 @@ fun HomeScreen(
             stringResource(R.string.home_tab_favorites),
             stringResource(R.string.home_tab_playlists),
         )
-        TabRow(selectedTabIndex = selectedTab) {
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.primary,
+            divider = { TrackDivider() },
+        ) {
             tabs.forEachIndexed { index, title ->
                 Tab(
                     selected = selectedTab == index,
                     onClick = { selectedTab = index },
-                    text = { Text(title) },
+                    selectedContentColor = MaterialTheme.colorScheme.onSurface,
+                    unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = { Text(title, style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false) },
                 )
             }
         }
@@ -203,9 +212,9 @@ private fun VideoList(
         return
     }
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         items(videos, key = { it.id }) { video ->
-            Card(onClick = { onOpenVideo(video.id) }) {
+            DepthCard(onClick = { onOpenVideo(video.id) }) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -223,10 +232,10 @@ private fun VideoList(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { onOpenVideo(video.id) }) {
+                        RoundIconButton(onClick = { onOpenVideo(video.id) }) {
                             Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.common_play))
                         }
-                        IconButton(onClick = { onToggleFavorite(video.id) }) {
+                        RoundIconButton(onClick = { onToggleFavorite(video.id) }) {
                             Icon(
                                 imageVector = if (video.isFavorite) {
                                     Icons.Rounded.Favorite
@@ -236,11 +245,9 @@ private fun VideoList(
                                 contentDescription = stringResource(R.string.home_tab_favorites),
                             )
                         }
-                        Text(
-                            text = stringResource(R.string.home_add_to_playlist),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.clickable { onAddToPlaylist(video) },
-                        )
+                        TextButton(onClick = { onAddToPlaylist(video) }) {
+                            Text(stringResource(R.string.home_add_to_playlist))
+                        }
                     }
                 }
             }
@@ -259,9 +266,9 @@ private fun RecentList(
         return
     }
 
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyColumn(contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         items(items, key = { it.video.id }) { item ->
-            Card(onClick = { onOpenVideo(item.video.id) }) {
+            DepthCard(onClick = { onOpenVideo(item.video.id) }) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -292,14 +299,14 @@ private fun PlaylistList(
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(stringResource(R.string.home_my_playlists), style = MaterialTheme.typography.titleMedium)
-            AssistChip(onClick = { creating = true }, label = { Text(stringResource(R.string.home_new_playlist)) })
+            DepthChip(onClick = { creating = true }, label = { Text(stringResource(R.string.home_new_playlist)) })
         }
         if (playlists.isEmpty()) {
             EmptyStateText(emptyText)
         } else {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyColumn(contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(playlists, key = { it.id }) { playlist ->
-                    Card(onClick = { onOpenPlaylist(playlist.id) }) {
+                    DepthCard(onClick = { onOpenPlaylist(playlist.id) }) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -323,7 +330,7 @@ private fun PlaylistList(
             onDismissRequest = { creating = false },
             title = { Text(stringResource(R.string.home_create_playlist)) },
             text = {
-                OutlinedTextField(
+                QuietTextField(
                     value = text,
                     onValueChange = { text = it },
                     label = { Text(stringResource(R.string.home_playlist_name)) },
@@ -386,7 +393,7 @@ private fun PlaylistPickerDialog(
                         }
                     }
                 }
-                OutlinedTextField(
+                QuietTextField(
                     value = newPlaylistName,
                     onValueChange = { newPlaylistName = it },
                     label = { Text(stringResource(R.string.home_create_playlist)) },
