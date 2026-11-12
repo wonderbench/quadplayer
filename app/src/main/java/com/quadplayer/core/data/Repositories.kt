@@ -42,6 +42,8 @@ interface HistoryRepository {
     fun observeRecent(limit: Int = 100): Flow<List<RecentPlayback>>
     suspend fun getResumePosition(videoId: Long): Long
     suspend fun recordPlayback(videoId: Long, positionMs: Long)
+    suspend fun deleteHistory(videoId: Long)
+    suspend fun clearHistory()
 }
 
 interface PlaylistRepository {
@@ -128,6 +130,9 @@ class DefaultHistoryRepository @Inject constructor(
     override suspend fun getResumePosition(videoId: Long): Long = withContext(Dispatchers.IO) {
         playHistoryDao.getByVideoId(videoId)?.lastPositionMs ?: 0L
     }
+
+    override suspend fun deleteHistory(videoId: Long) = withContext(Dispatchers.IO) { playHistoryDao.deleteByVideoId(videoId) }
+    override suspend fun clearHistory() = withContext(Dispatchers.IO) { playHistoryDao.clear() }
 
     override suspend fun recordPlayback(videoId: Long, positionMs: Long) = withContext(Dispatchers.IO) {
         val existing = playHistoryDao.getByVideoId(videoId)

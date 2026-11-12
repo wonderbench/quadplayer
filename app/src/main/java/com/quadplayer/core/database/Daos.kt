@@ -80,6 +80,12 @@ interface PlayHistoryDao {
 
     @Upsert
     suspend fun upsert(history: PlayHistoryEntity)
+
+    @Query("DELETE FROM play_history WHERE video_id = :videoId")
+    suspend fun deleteByVideoId(videoId: Long)
+
+    @Query("DELETE FROM play_history")
+    suspend fun clear()
 }
 
 @Dao

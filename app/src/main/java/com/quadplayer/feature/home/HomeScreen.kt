@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import com.quadplayer.ui.theme.DepthChip
 import androidx.compose.material3.Button
@@ -30,6 +31,7 @@ import com.quadplayer.ui.theme.TrackDivider
 import androidx.compose.material3.Icon
 import com.quadplayer.ui.theme.RoundIconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.quadplayer.ui.theme.QuietTextField
@@ -70,6 +72,7 @@ fun HomeScreen(
     onOpenPlaylist: (Long) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val historyError by viewModel.historyError.collectAsStateWithLifecycle()
     val permission = rememberMediaAccess(viewModel::refresh)
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var playlistTarget by remember { mutableStateOf<VideoFile?>(null) }
@@ -177,6 +180,8 @@ fun HomeScreen(
                 items = uiState.recent,
                 emptyText = stringResource(R.string.home_empty_recent),
                 onOpenVideo = onOpenVideo,
+                onDelete = viewModel::deleteHistory,
+                onClear = viewModel::clearHistory,
             )
 
             2 -> VideoList(
@@ -206,6 +211,13 @@ fun HomeScreen(
                 playlistTarget = null
             },
             onCreate = viewModel::createPlaylist,
+        )
+    }
+    if (historyError) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissHistoryError,
+            text = { Text(stringResource(R.string.history_change_failed)) },
+            confirmButton = { TextButton(onClick = viewModel::dismissHistoryError) { Text(stringResource(R.string.common_close)) } },
         )
     }
 }
@@ -272,13 +284,21 @@ private fun RecentList(
     items: List<RecentPlayback>,
     emptyText: String,
     onOpenVideo: (Long) -> Unit,
+    onDelete: (Long) -> Unit,
+    onClear: () -> Unit,
 ) {
+    var confirmingClear by remember { mutableStateOf(false) }
     if (items.isEmpty()) {
         EmptyStateText(emptyText)
         return
     }
 
     LazyColumn(contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { confirmingClear = true }) { Text(stringResource(R.string.history_clear)) }
+            }
+        }
         items(items, key = { it.video.id }) { item ->
             DepthCard(onClick = { onOpenVideo(item.video.id) }) {
                 Row(
@@ -296,10 +316,28 @@ private fun RecentList(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (item.video.durationMs > 0) {
+                        LinearProgressIndicator(
+                            progress = { (item.lastPositionMs.toFloat() / item.video.durationMs).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    }
+                    RoundIconButton(onClick = { onDelete(item.video.id) }) {
+                        Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.history_remove))
                     }
                 }
             }
         }
+    }
+    if (confirmingClear) {
+        AlertDialog(
+            onDismissRequest = { confirmingClear = false },
+            title = { Text(stringResource(R.string.history_clear)) },
+            text = { Text(stringResource(R.string.history_clear_confirmation)) },
+            confirmButton = { TextButton(onClick = { onClear(); confirmingClear = false }) { Text(stringResource(R.string.history_clear)) } },
+            dismissButton = { TextButton(onClick = { confirmingClear = false }) { Text(stringResource(R.string.common_cancel)) } },
+        )
     }
 }
 
