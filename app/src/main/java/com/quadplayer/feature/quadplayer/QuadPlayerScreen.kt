@@ -178,6 +178,12 @@ fun QuadPlayerScreen(
             },
         )
 
+        if (state.recoveryAvailable) {
+            Surface(modifier = Modifier.align(Alignment.BottomStart).padding(8.dp), tonalElevation = 6.dp) {
+                TextButton(onClick = viewModel::reopenRecovery) { Text(stringResource(R.string.quad_session_reopen)) }
+            }
+        }
+
         if (state.layoutMode != LayoutMode.EQUAL_GRID) {
             Surface(
                 modifier = Modifier.align(Alignment.TopStart).padding(start = 8.dp, top = if (controlsVisible) 76.dp else 8.dp),
@@ -200,11 +206,11 @@ fun QuadPlayerScreen(
 
     if (state.offerRecovery) {
         AlertDialog(
-            onDismissRequest = viewModel::dismissRecovery,
+            onDismissRequest = viewModel::hideRecovery,
             title = { Text(stringResource(R.string.quad_session_title)) },
             text = { Text(stringResource(R.string.quad_session_message)) },
             confirmButton = { TextButton(onClick = viewModel::restoreSession) { Text(stringResource(R.string.quad_session_restore)) } },
-            dismissButton = { TextButton(onClick = viewModel::dismissRecovery) { Text(stringResource(R.string.quad_session_new)) } },
+            dismissButton = { TextButton(onClick = viewModel::startNewSession) { Text(stringResource(R.string.quad_session_new)) } },
         )
     }
 
