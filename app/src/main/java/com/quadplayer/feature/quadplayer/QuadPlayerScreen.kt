@@ -280,7 +280,7 @@ fun QuadPlayerScreen(
 @Composable
 private fun TopOverlay(
     modifier: Modifier,
-    warningMessage: String?,
+    warningMessage: QuadNotice?,
     pendingSwapSource: Int?,
     controlsVisible: Boolean,
     onExit: () -> Unit,
@@ -342,7 +342,7 @@ private fun TopOverlay(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = warning,
+                        text = quadNoticeText(warning),
                         modifier = Modifier.weight(1f),
                         color = MaterialTheme.colorScheme.onErrorContainer,
                     )
@@ -368,6 +368,10 @@ private fun TopOverlay(
         }
     }
 }
+
+@Composable
+internal fun quadNoticeText(notice: QuadNotice): String =
+    stringResource(notice.resourceId, *notice.arguments.toTypedArray())
 
 @Composable
 private fun BottomOverlay(
