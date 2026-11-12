@@ -31,10 +31,12 @@ data class QuadSlotUiState(
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class QuadPlaybackEngine(private val context: Context) {
+class QuadPlaybackEngine(private val context: Context, private val beforeLoad: suspend (VideoFile) -> Unit = {}) {
     private data class Slot(val video: VideoFile? = null, val controller: PlayerController? = null)
     private val slots = List(4) { MutableStateFlow(Slot()) }
     private val volumes = MutableList(4) { 0f }
+    private val pending = arrayOfNulls<PlayerController>(4)
+    private val generations = LongArray(4)
     private var settings = AppSettings()
     private var globalSpeed: PlaybackSpeed? = null
     private var suspended = false
@@ -62,25 +64,41 @@ class QuadPlaybackEngine(private val context: Context) {
         }
     }
 
-    suspend fun load(slotIndex: Int, video: VideoFile) {
+    suspend fun load(slotIndex: Int, video: VideoFile): Boolean {
+        cancelPending(slotIndex)
+        val generation = generations[slotIndex]
         val old = slots[slotIndex].value.controller
-        val controller = old ?: PlayerController(context).also {
-            it.applySettings(settings)
-            globalSpeed?.let(it::setPlaybackSpeed)
-            it.player.volume = volumes[slotIndex]
-        }
+        val controller = PlayerController(context)
+        pending[slotIndex] = controller
         try {
-            // Load paused so an import finishing after ON_STOP cannot start audio in the background.
-            controller.load(video, playWhenReady = false)
+            controller.applySettings(settings)
+            beforeLoad(video)
+            if (generation != generations[slotIndex]) return false
+            if (!controller.load(video, playWhenReady = false) || generation != generations[slotIndex]) return false
+            if (slots[slotIndex].value.controller !== old) return false
+            val selectedSpeed = old?.player?.playbackParameters?.speed?.let(PlaybackSpeed::fromValue) ?: globalSpeed
+            selectedSpeed?.let(controller::setPlaybackSpeed)
+            controller.player.volume = volumes[slotIndex]
             slots[slotIndex].value = Slot(video, controller)
+            pending[slotIndex] = null
+            resumeIntents.remove(old)
+            old?.release()
             setSlotPlaying(slotIndex, true)
-        } catch (error: Throwable) {
-            if (old == null) controller.release()
-            throw error
+            return true
+        } finally {
+            if (pending[slotIndex] === controller) pending[slotIndex] = null
+            if (slots[slotIndex].value.controller !== controller) controller.release()
         }
     }
 
+    private fun cancelPending(slotIndex: Int) {
+        generations[slotIndex]++
+        pending[slotIndex]?.release()
+        pending[slotIndex] = null
+    }
+
     fun remove(slotIndex: Int) {
+        cancelPending(slotIndex)
         val controller = slots[slotIndex].value.controller
         slots[slotIndex].value = Slot()
         resumeIntents.remove(controller)
@@ -113,8 +131,10 @@ class QuadPlaybackEngine(private val context: Context) {
         } else if (playing) controller.play() else controller.pause()
     }
 
-    suspend fun swap(first: Int, second: Int) {
+    fun swap(first: Int, second: Int) {
         if (first == second) return
+        cancelPending(first)
+        cancelPending(second)
         val firstSlot = slots[first].value
         slots[first].value = slots[second].value
         slots[second].value = firstSlot
