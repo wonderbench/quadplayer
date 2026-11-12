@@ -1,0 +1,2 @@
+Inter Tight is from Google Fonts: https://github.com/google/fonts/tree/main/ofl/intertight
+The bundled regular and semibold files are static instances of the upstream variable font (weights 400 and 600). See inter_tight_ofl.txt for its license.
