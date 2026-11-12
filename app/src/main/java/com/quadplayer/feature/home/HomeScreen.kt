@@ -252,7 +252,7 @@ private fun VideoList(
                                 } else {
                                     Icons.Rounded.FavoriteBorder
                                 },
-                                contentDescription = stringResource(R.string.home_tab_favorites),
+                                contentDescription = stringResource(if (video.isFavorite) R.string.favorite_remove else R.string.favorite_add),
                             )
                         }
                         TextButton(onClick = { onAddToPlaylist(video) }) {

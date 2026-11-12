@@ -66,6 +66,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
@@ -94,6 +96,7 @@ fun PlayerScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val progressLabel = stringResource(R.string.player_progress)
     val configuration = LocalConfiguration.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val activity = context as? Activity
@@ -317,7 +320,7 @@ fun PlayerScreen(
                             }
                             Text(formatDuration(if (isSeeking) seekPosition.toLong() else state.playerState.currentPositionMs))
                             Slider(
-                                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+                                modifier = Modifier.weight(1f).padding(horizontal = 8.dp).semantics { contentDescription = progressLabel },
                                 value = if (isSeeking) seekPosition else state.playerState.currentPositionMs.toFloat().coerceIn(0f, state.playerState.durationMs.coerceAtLeast(1L).toFloat()),
                                 onValueChange = { isSeeking = true; seekPosition = it },
                                 onValueChangeFinished = { viewModel.seekTo(seekPosition.toLong()); isSeeking = false },
@@ -375,6 +378,7 @@ fun PlayerScreen(
                     }
 
                     Slider(
+                        modifier = Modifier.semantics { contentDescription = progressLabel },
                         value = if (isSeeking) seekPosition else state.playerState.currentPositionMs.toFloat().coerceIn(0f, state.playerState.durationMs.coerceAtLeast(1L).toFloat()),
                         onValueChange = { isSeeking = true; seekPosition = it },
                         onValueChangeFinished = { viewModel.seekTo(seekPosition.toLong()); isSeeking = false },

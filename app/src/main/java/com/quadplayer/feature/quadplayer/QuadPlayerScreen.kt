@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts.OpenDocument
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,6 +46,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -472,29 +477,19 @@ private fun QuadSlotContent(
             sliderPosition = slot.positionMs.coerceIn(0L, slot.durationMs.coerceAtLeast(0L))
         }
     }
+    val audioAction = stringResource(R.string.quad_select_audio)
+    val menuAction = stringResource(R.string.quad_slot_actions)
+    val progressLabel = stringResource(R.string.quad_slot_progress, slot.index + 1)
+    val interaction = quadSlotInteraction(
+        empty = slot.video == null, audioLabel = audioAction, menuLabel = menuAction,
+        onAdd = { onAddVideo(slot.index) }, onProgress = { onShowProgress(slot.index) },
+        onAudio = { onSwitchAudio(slot.index) }, onMenu = { onOpenMenu(slot.index) },
+    )
 
     Box(
         modifier = modifier
             .background(Color.Black)
-            .combinedClickable(
-                onClick = {
-                    if (slot.video == null) {
-                        onAddVideo(slot.index)
-                    } else {
-                        onShowProgress(slot.index)
-                    }
-                },
-                onDoubleClick = {
-                    if (slot.video != null) {
-                        onSwitchAudio(slot.index)
-                    }
-                },
-                onLongClick = {
-                    if (slot.video != null) {
-                        onOpenMenu(slot.index)
-                    }
-                },
-            ),
+            .then(interaction),
         contentAlignment = Alignment.Center,
     ) {
         Box(
@@ -575,6 +570,7 @@ private fun QuadSlotContent(
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
                             .padding(bottom = progressBottomInset)
+                            .semantics { contentDescription = progressLabel }
                             .padding(horizontal = 4.dp, vertical = 2.dp),
                         value = sliderPosition.toFloat(),
                         onValueChange = {
@@ -591,6 +587,25 @@ private fun QuadSlotContent(
             }
         }
     }
+}
+
+internal fun quadSlotInteraction(
+    empty: Boolean,
+    audioLabel: String,
+    menuLabel: String,
+    onAdd: () -> Unit,
+    onProgress: () -> Unit,
+    onAudio: () -> Unit,
+    onMenu: () -> Unit,
+): Modifier = if (empty) {
+    Modifier.clickable(onClick = onAdd)
+} else {
+    Modifier.semantics {
+        customActions = listOf(
+            CustomAccessibilityAction(audioLabel) { onAudio(); true },
+            CustomAccessibilityAction(menuLabel) { onMenu(); true },
+        )
+    }.combinedClickable(onClick = onProgress, onDoubleClick = onAudio, onLongClick = onMenu)
 }
 
 @Composable
