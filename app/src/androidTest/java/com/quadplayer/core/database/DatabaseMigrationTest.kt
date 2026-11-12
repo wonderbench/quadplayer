@@ -3,6 +3,7 @@ package com.quadplayer.core.database
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
+import com.quadplayer.core.data.DefaultPlaylistRepository
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -52,6 +53,16 @@ class DatabaseMigrationTest {
             dao.upsert(video)
             assertEquals(1, dao.observeFavorites().first().size)
             assertEquals(1, db.playlistDao().observePlaylistVideos(1).first().size)
+            assertEquals(42L, db.playHistoryDao().getByVideoId(1)!!.lastPositionMs)
+            dao.upsert(video.copy(id = 2, uriString = "content://video/2", isFavorite = false))
+            dao.upsert(video.copy(id = 3, uriString = "content://video/3", isFavorite = false))
+            db.playlistDao().upsertEntries(listOf(PlaylistVideoEntity(1, 2, 1), PlaylistVideoEntity(1, 3, 2)))
+            dao.upsert(video.copy(isAccessible = false))
+            val repository = DefaultPlaylistRepository(db.playlistDao(), db)
+            repository.swapVideos(1, 3, 2)
+            assertEquals(listOf(3L, 2L), db.playlistDao().observePlaylistVideos(1).first().map { it.id })
+            dao.upsert(video)
+            assertEquals(listOf(1L, 3L, 2L), db.playlistDao().observePlaylistVideos(1).first().map { it.id })
             assertEquals(42L, db.playHistoryDao().getByVideoId(1)!!.lastPositionMs)
         } finally { db.close() }
     }

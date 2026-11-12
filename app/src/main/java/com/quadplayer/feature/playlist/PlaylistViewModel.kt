@@ -34,17 +34,21 @@ class PlaylistViewModel @Inject constructor(
 
     fun moveUp(index: Int) {
         val state = uiState.value
-        if (index <= 0) return
+        if (index !in 1..state.videos.lastIndex) return
+        val videoId = state.videos[index].id
+        val neighborId = state.videos[index - 1].id
         viewModelScope.launch {
-            playlistRepository.moveVideo(state.playlistId, index, index - 1)
+            playlistRepository.swapVideos(state.playlistId, videoId, neighborId)
         }
     }
 
     fun moveDown(index: Int) {
         val state = uiState.value
-        if (index >= state.videos.lastIndex) return
+        if (index < 0 || index >= state.videos.lastIndex) return
+        val videoId = state.videos[index].id
+        val neighborId = state.videos[index + 1].id
         viewModelScope.launch {
-            playlistRepository.moveVideo(state.playlistId, index, index + 1)
+            playlistRepository.swapVideos(state.playlistId, videoId, neighborId)
         }
     }
 
