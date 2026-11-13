@@ -16,7 +16,7 @@ v1.0 提供调试版 APK，适用于 Android 8.0（API 26）及以上设备。�
 
 ## 构建发布版本
 
-默认从 Google、Maven Central 和 Gradle 插件仓库下载依赖；如需优先使用国内镜像，可在构建命令中加 `-PuseChinaMirrors=true`。Gradle Wrapper 使用带 SHA-256 校验的 8.14 精简发行包。
+默认从 Google、Maven Central 和 Gradle 插件仓库下载依赖；如需优先使用国内镜像，可在构建命令中加 `-PuseChinaMirrors=true`。Gradle Wrapper 使用带 SHA-256 校验的 9.3.1 精简发行包；构建需要 JDK 17、Android SDK 36 和 Build Tools 36.1.0。
 
 Gradle 依赖校验清单记录构建、测试和发布所用组件的 SHA-256；依赖升级后需重新生成并审阅新增校验值。当前清单根据本机构建时解析的依赖生成（含可选镜像来源），可检测之后的内容变化，但首次生成的哈希本身不证明上游来源可信；更新时应核对发布方的来源及校验值。
 

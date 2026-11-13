@@ -107,10 +107,10 @@ androidx.viewpager2:viewpager2:1.0.0
 androidx.viewpager:viewpager:1.0.0
 com.google.android.material:material:1.12.0
 com.google.code.findbugs:jsr305:3.0.2
-com.google.dagger:dagger-lint-aar:2.52
-com.google.dagger:dagger:2.52
-com.google.dagger:hilt-android:2.52
-com.google.dagger:hilt-core:2.52
+com.google.dagger:dagger-lint-aar:2.60.1
+com.google.dagger:dagger:2.60.1
+com.google.dagger:hilt-android:2.60.1
+com.google.dagger:hilt-core:2.60.1
 com.google.errorprone:error_prone_annotations:2.15.0
 com.google.guava:failureaccess:1.0.2
 com.google.guava:guava:33.3.1-android
@@ -120,7 +120,7 @@ jakarta.inject:jakarta.inject-api:2.0.1
 javax.inject:javax.inject:1
 org.jetbrains.kotlin:kotlin-android-extensions-runtime:1.9.22
 org.jetbrains.kotlin:kotlin-parcelize-runtime:1.9.22
-org.jetbrains.kotlin:kotlin-stdlib:2.1.21
+org.jetbrains.kotlin:kotlin-stdlib:2.3.21
 org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1
 org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.8.1
 org.jetbrains.kotlinx:kotlinx-serialization-core-jvm:1.6.3
