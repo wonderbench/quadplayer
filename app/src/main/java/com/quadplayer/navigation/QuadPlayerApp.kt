@@ -34,7 +34,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.quadplayer.ui.theme.RoundNavigationIcon
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -92,7 +93,9 @@ fun QuadPlayerApp(activityViewModel: MainActivityViewModel) {
 
     val entry by navController.currentBackStackEntryAsState()
     val playbackRoute = entry?.destination?.route in setOf(Screen.Player.route, Screen.Quad.route)
-    val showRail = !playbackRoute && LocalConfiguration.current.screenWidthDp >= 600 && bottomDestinations.any { it.screen.route == entry?.destination?.route }
+    val windowWidth = LocalWindowInfo.current.containerSize.width
+    val windowWidthDp = with(LocalDensity.current) { windowWidth.toDp() }
+    val showRail = !playbackRoute && windowWidthDp >= 600.dp && bottomDestinations.any { it.screen.route == entry?.destination?.route }
     Scaffold(bottomBar = { if (!showRail) QuadPlayerBottomBar(navController, bottomDestinations) }) { innerPadding ->
         Row(Modifier.fillMaxSize()) {
         if (showRail) QuadPlayerNavigationRail(navController, bottomDestinations)

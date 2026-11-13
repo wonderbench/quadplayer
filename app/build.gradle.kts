@@ -153,7 +153,7 @@ require(suppliedVersionCode == null || (releaseVersionCode != null && releaseVer
 android {
     sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
     namespace = "com.quadplayer"
-    compileSdk = 36
+    compileSdk = 37
     buildToolsVersion = "36.1.0"
 
     defaultConfig {

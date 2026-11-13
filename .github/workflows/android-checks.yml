@@ -19,10 +19,10 @@ jobs:
           distribution: temurin
           java-version: '17'
       - uses: gradle/actions/setup-gradle@v6
-      - name: Ensure Android 16 SDK is installed
+      - name: Ensure Android SDK and build tools are installed
         run: |
-          if [ ! -f "$ANDROID_HOME/platforms/android-36/android.jar" ]; then
-            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-36"
+          if [ ! -f "$ANDROID_HOME/platforms/android-37.0/android.jar" ]; then
+            "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.0"
           fi
           if [ ! -f "$ANDROID_HOME/build-tools/36.1.0/aapt2" ]; then
             "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.1.0"

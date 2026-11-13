@@ -54,7 +54,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -84,7 +85,8 @@ fun HomeScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val historyError by viewModel.historyError.collectAsStateWithLifecycle()
     val removalError by viewModel.removalError.collectAsStateWithLifecycle()
-    val compactHeight = LocalConfiguration.current.screenHeightDp < 480
+    val windowHeight = LocalWindowInfo.current.containerSize.height
+    val compactHeight = with(LocalDensity.current) { windowHeight.toDp() } < 480.dp
     val permission = rememberMediaAccess(viewModel::refresh)
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var searchExpanded by rememberSaveable(compactHeight) { mutableStateOf(!compactHeight) }
