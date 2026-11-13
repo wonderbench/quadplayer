@@ -33,7 +33,6 @@ android {
         versionCode = releaseVersionCode ?: 1
         versionName = providers.environmentVariable("QP_VERSION_NAME").orNull ?: "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables.useSupportLibrary = true
     }
 
     signingConfigs {
@@ -64,7 +63,6 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = true
     }
 
     packaging {
@@ -118,19 +116,17 @@ dependencies {
     implementation(libs.media3Exoplayer)
     implementation(libs.media3Ui)
     implementation(libs.media3Session)
-    implementation(libs.coilCompose)
-    implementation(libs.accompanistPermissions)
+    // Preserve versions previously supplied by Coil for Media3 and DataStore.
+    implementation(libs.exifinterface)
+    implementation(libs.okioJvm)
 
     testImplementation(libs.junit)
     testImplementation(libs.coroutinesTest)
-    testImplementation(libs.roomTesting)
-    testImplementation(libs.turbine)
-    testImplementation(libs.androidxTestCore)
-    testImplementation(libs.robolectric)
 
     debugImplementation(libs.composeTooling)
     androidTestImplementation(libs.androidxTestJunit)
     androidTestImplementation(libs.androidxTestRunner)
+    androidTestImplementation(libs.androidxTestCore)
     androidTestImplementation(libs.espressoCore)
     androidTestImplementation(composeBom)
     androidTestImplementation(libs.composeTestJunit)
