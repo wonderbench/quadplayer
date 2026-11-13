@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +39,8 @@ import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.LockOpen
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ScreenRotationAlt
 import androidx.compose.material.icons.rounded.SkipPrevious
@@ -113,6 +116,7 @@ fun PlayerScreen(
     var seekPosition by remember { mutableFloatStateOf(0f) }
     var showMore by remember { mutableStateOf(false) }
     var showSpeed by remember { mutableStateOf(false) }
+    var controlsLocked by rememberSaveable { mutableStateOf(false) }
     var inPip by remember { mutableStateOf(activity?.isInPictureInPictureMode == true) }
     var pickerOpen by remember { mutableStateOf(false) }
     val pipSupported = context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
@@ -252,13 +256,16 @@ fun PlayerScreen(
             viewModel = viewModel,
         )
 
-        if (!inPip) GestureOverlay(
+        if (!inPip && !controlsLocked) GestureOverlay(
             modifier = Modifier.fillMaxSize(),
             context = context,
             seekSeconds = state.settings.doubleTapSeekSeconds,
             reverseDoubleTapSeek = state.settings.reverseDoubleTapSeek,
             onToggleControls = viewModel::toggleControls,
             onSeekBy = { viewModel.seekBy(it) },
+            currentPosition = { viewModel.controller.player.currentPosition },
+            duration = { viewModel.controller.player.duration.coerceAtLeast(0L) },
+            onSeekTo = viewModel::seekTo,
             onLongPress = {
                 if (speedBeforeHold == null) {
                     speedBeforeHold = PlaybackSpeed.fromValue(viewModel.controller.player.playbackParameters.speed)
@@ -306,7 +313,7 @@ fun PlayerScreen(
             }
         }
 
-        if (!inPip) PlayerFloatingActions(
+        if (!inPip && !controlsLocked) PlayerFloatingActions(
             modifier = Modifier
                 .align(if (floatingActionsOnLeft) Alignment.CenterStart else Alignment.CenterEnd)
                 .windowInsetsPadding(WindowInsets.displayCutout)
@@ -327,7 +334,21 @@ fun PlayerScreen(
             },
         )
 
-        if (state.controlsVisible && !inPip) {
+        if (!inPip && (controlsLocked || state.controlsVisible)) {
+            Box(Modifier.align(Alignment.TopStart).windowInsetsPadding(WindowInsets.displayCutout)
+                .then(if (isLandscapeMode) Modifier else Modifier.statusBarsPadding()).padding(16.dp)) {
+                RoundIconButton(onClick = {
+                    controlsLocked = !controlsLocked
+                    endSpeedHold()
+                    if (controlsLocked) viewModel.hideControls() else viewModel.showControls()
+                }) {
+                    Icon(if (controlsLocked) Icons.Rounded.Lock else Icons.Rounded.LockOpen,
+                        contentDescription = stringResource(if (controlsLocked) R.string.player_unlock_controls else R.string.player_lock_controls))
+                }
+            }
+        }
+
+        if (state.controlsVisible && !inPip && !controlsLocked) {
             Surface(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -648,6 +669,9 @@ private fun GestureOverlay(
     reverseDoubleTapSeek: Boolean,
     onToggleControls: () -> Unit,
     onSeekBy: (Long) -> Unit,
+    currentPosition: () -> Long,
+    duration: () -> Long,
+    onSeekTo: (Long) -> Unit,
     onLongPress: () -> Unit,
     onPressEnd: () -> Unit,
 ) {
@@ -657,6 +681,7 @@ private fun GestureOverlay(
     val activity = context as? Activity
     var indicator by remember { mutableStateOf<Pair<Boolean, Float>?>(null) }
     var indicatorVersion by remember { mutableIntStateOf(0) }
+    var seekPreview by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(indicatorVersion) {
         if (indicator != null) { delay(1200); indicator = null }
     }
@@ -709,6 +734,26 @@ private fun GestureOverlay(
                     indicatorVersion++
                     change.consume()
                 }
+            }
+            .pointerInput(Unit) {
+                var startPosition = 0L
+                var videoDuration = 0L
+                var distance = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        startPosition = currentPosition().coerceAtLeast(0L)
+                        videoDuration = duration()
+                        distance = 0f
+                    },
+                    onDragEnd = { seekPreview?.let(onSeekTo); seekPreview = null },
+                    onDragCancel = { seekPreview = null },
+                ) { change, dragAmount ->
+                    if (videoDuration > 0L) {
+                        distance += dragAmount
+                        seekPreview = horizontalSeekTarget(startPosition, videoDuration, distance, size.width.toFloat())
+                        change.consume()
+                    }
+                }
             },
     ) {
         indicator?.let { (brightness, level) ->
@@ -719,7 +764,19 @@ private fun GestureOverlay(
                 }
             }
         }
+        seekPreview?.let { target ->
+            Surface(modifier = Modifier.align(Alignment.Center), tonalElevation = 6.dp, shape = MaterialTheme.shapes.medium) {
+                Text(stringResource(R.string.player_seek_preview, formatDuration(target)), modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+            }
+        }
     }
+}
+
+internal fun horizontalSeekTarget(start: Long, duration: Long, dragPixels: Float, widthPixels: Float): Long {
+    if (duration <= 0 || widthPixels <= 0f || !dragPixels.isFinite() || !widthPixels.isFinite()) return start.coerceAtLeast(0L)
+    val delta = (dragPixels / widthPixels * duration.coerceAtMost(120_000L)).toLong()
+    val boundedStart = start.coerceIn(0L, duration)
+    return boundedStart + delta.coerceIn(-boundedStart, duration - boundedStart)
 }
 
 internal fun accumulateVolume(current: Float, delta: Float, max: Int): Float =

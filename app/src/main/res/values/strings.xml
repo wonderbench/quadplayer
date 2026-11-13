@@ -125,6 +125,9 @@
 
     <string name="player_title">播放器</string>
     <string name="player_more">更多播放选项</string>
+    <string name="player_lock_controls">锁定播放控件</string>
+    <string name="player_unlock_controls">解锁播放控件</string>
+    <string name="player_seek_preview">定位至 %1$s</string>
     <string name="player_current_speed">播放倍速：%1$s</string>
     <string name="settings_auto_pip">离开时进入画中画</string>
     <string name="settings_auto_pip_desc">播放视频时返回桌面会自动进入画中画（Android 12 及以上）。</string>
