@@ -71,6 +71,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
@@ -109,6 +111,7 @@ fun PlayerScreen(
     val activity = context as? Activity
     var showAudioDialog by remember { mutableStateOf(false) }
     var showSubtitleDialog by remember { mutableStateOf(false) }
+    var controlsTopInRoot by remember { mutableFloatStateOf(Float.NaN) }
     var orientationOverride by rememberSaveable {
         mutableIntStateOf(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED)
     }
@@ -254,6 +257,7 @@ fun PlayerScreen(
         PlayerSurface(
             modifier = Modifier.fillMaxSize(),
             viewModel = viewModel,
+            controlsTopInRoot = controlsTopInRoot.takeIf { state.controlsVisible && !inPip && !controlsLocked },
         )
 
         if (!inPip && !controlsLocked) GestureOverlay(
@@ -354,7 +358,8 @@ fun PlayerScreen(
                     .align(Alignment.BottomCenter)
                     .then(if (isLandscapeMode) Modifier else Modifier.navigationBarsPadding())
                     .windowInsetsPadding(WindowInsets.displayCutout)
-                    .fillMaxWidth(),
+                    .fillMaxWidth()
+                    .onGloballyPositioned { controlsTopInRoot = it.positionInRoot().y },
                 tonalElevation = 8.dp,
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
             ) {
@@ -609,8 +614,11 @@ private fun FloatingPlayerActionButton(
 private fun PlayerSurface(
     modifier: Modifier,
     viewModel: PlayerViewModel,
+    controlsTopInRoot: Float?,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    var playerTopInRoot by remember { mutableFloatStateOf(Float.NaN) }
+    val subtitleInset = remember { arrayOfNulls<SubtitleControlsInset>(1) }
     val aspectRatio = when (state.playerState.aspectMode) {
         AspectMode.SIXTEEN_NINE -> 16f / 9f
         AspectMode.FOUR_THREE -> 4f / 3f
@@ -639,7 +647,9 @@ private fun PlayerSurface(
             Modifier.fillMaxSize()
         }
         AndroidView(
-            modifier = playerModifier,
+            modifier = playerModifier.onGloballyPositioned {
+                playerTopInRoot = it.positionInRoot().y
+            },
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
                     useController = false
@@ -647,6 +657,7 @@ private fun PlayerSurface(
                     this.resizeMode = resizeMode
                     setShutterBackgroundColor(android.graphics.Color.BLACK)
                     setBackgroundColor(android.graphics.Color.BLACK)
+                    subtitleInset[0] = SubtitleControlsInset(this)
                 }
             },
             update = { playerView ->
@@ -654,6 +665,7 @@ private fun PlayerSurface(
                 playerView.keepScreenOn = state.playerState.isPlaying
                 playerView.resizeMode = resizeMode
                 playerView.applySubtitleStyle(state.settings.subtitleStyle)
+                subtitleInset[0]?.update(playerTopInRoot, controlsTopInRoot, state.settings.subtitleStyle.fontScale)
                 playerView.setShutterBackgroundColor(android.graphics.Color.BLACK)
                 playerView.setBackgroundColor(android.graphics.Color.BLACK)
             },
