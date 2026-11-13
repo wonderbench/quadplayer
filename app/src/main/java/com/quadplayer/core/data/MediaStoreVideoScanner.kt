@@ -15,6 +15,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import java.io.FileNotFoundException
+import java.io.IOException
+
+internal enum class ManualVideoAccess { AVAILABLE, UNAVAILABLE, UNKNOWN }
 
 /** Match the same canonical URI used by scanVideos, only for verified primary-volume video rows. */
 internal fun canonicalScannedVideoUri(mapped: Uri, rowId: Long, mediaType: Int?, volume: String?): Uri? {
@@ -32,6 +36,18 @@ internal fun canonicalScannedVideoUri(mapped: Uri, rowId: Long, mediaType: Int?,
 class MediaStoreVideoScanner @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
+    /** Other provider failures leave the previous availability unchanged. */
+    internal fun manualVideoAccess(uri: Uri): ManualVideoAccess = try {
+        context.contentResolver.openFileDescriptor(uri, "r")?.use { ManualVideoAccess.AVAILABLE }
+            ?: ManualVideoAccess.UNKNOWN
+    } catch (_: FileNotFoundException) {
+        ManualVideoAccess.UNAVAILABLE
+    } catch (_: SecurityException) {
+        ManualVideoAccess.UNAVAILABLE
+    } catch (_: IOException) {
+        ManualVideoAccess.UNKNOWN
+    }
+
     /** Only normalize when the underlying document grant is persisted and the mapped URI remains readable. */
     fun persistedMediaUri(uri: Uri): Uri? {
         if (Build.VERSION.SDK_INT < 29 || !DocumentsContract.isDocumentUri(context, uri)) return null

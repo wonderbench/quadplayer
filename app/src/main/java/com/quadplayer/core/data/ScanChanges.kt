@@ -10,7 +10,7 @@ internal fun calculateScanChanges(existing: List<VideoEntity>, scanned: List<Vid
     val upserts = scanned.mapNotNull { fresh ->
         val old = byUri[fresh.uriString]
         val merged = if (old == null) fresh else fresh.copy(id = old.id, isFavorite = old.isFavorite,
-            isManuallyAdded = old.isManuallyAdded, isAccessible = true)
+            isManuallyAdded = old.isManuallyAdded, isAccessible = true, isHidden = old.isHidden)
         merged.takeIf { it != old }
     }
     val hideIds = existing.filter { !it.isManuallyAdded && it.isAccessible && it.uriString !in seen && it.uriString !in authorizedUris }.map { it.id }

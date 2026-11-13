@@ -10,17 +10,17 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface VideoDao {
-    @Query("SELECT * FROM videos WHERE is_accessible = 1 ORDER BY date_modified DESC")
+    @Query("SELECT * FROM videos WHERE is_accessible = 1 AND is_hidden = 0 ORDER BY date_modified DESC")
     fun observeAll(): Flow<List<VideoEntity>>
 
-    @Query("SELECT * FROM videos WHERE is_favorite = 1 AND is_accessible = 1 ORDER BY display_name COLLATE NOCASE ASC")
+    @Query("SELECT * FROM videos WHERE is_favorite = 1 AND is_accessible = 1 AND is_hidden = 0 ORDER BY display_name COLLATE NOCASE ASC")
     fun observeFavorites(): Flow<List<VideoEntity>>
 
     @Query(
         """
         SELECT folder_path AS path, folder_name AS name, COUNT(*) AS videoCount
         FROM videos
-        WHERE is_accessible = 1
+        WHERE is_accessible = 1 AND is_hidden = 0
         GROUP BY folder_path, folder_name
         ORDER BY name COLLATE NOCASE ASC
         """,
@@ -48,11 +48,17 @@ interface VideoDao {
     @Query("UPDATE videos SET is_accessible = 0 WHERE id IN (:ids)")
     suspend fun markUnavailable(ids: List<Long>)
 
-    @Query("UPDATE videos SET is_accessible = 1 WHERE id = :videoId")
+    @Query("UPDATE videos SET is_accessible = 1, is_hidden = 0 WHERE id = :videoId")
     suspend fun markAvailable(videoId: Long)
 
-    @Query("UPDATE videos SET is_accessible = 0 WHERE id = :videoId AND is_manually_added = 1 AND is_accessible = 1")
+    @Query("UPDATE videos SET is_hidden = 1 WHERE id = :videoId AND is_manually_added = 1 AND is_accessible = 1 AND is_hidden = 0")
     suspend fun hideManualVideo(videoId: Long): Int
+
+    @Query("UPDATE videos SET is_accessible = 0 WHERE id IN (:ids) AND is_manually_added = 1")
+    suspend fun markManualUnavailable(ids: List<Long>)
+
+    @Query("UPDATE videos SET is_accessible = 1 WHERE id IN (:ids) AND is_manually_added = 1 AND is_hidden = 0")
+    suspend fun markManualAvailable(ids: List<Long>)
 }
 
 @Dao
@@ -62,7 +68,7 @@ interface PlayHistoryDao {
         SELECT v.*, ph.last_played_at, ph.last_position_ms
         FROM play_history ph
         INNER JOIN videos v ON ph.video_id = v.id
-        WHERE v.is_accessible = 1
+        WHERE v.is_accessible = 1 AND v.is_hidden = 0
         ORDER BY ph.last_played_at DESC
         LIMIT :limit
         """,
@@ -98,7 +104,7 @@ interface PlaylistDao {
         SELECT p.id, p.name, p.updated_at, COUNT(v.id) AS video_count
         FROM playlists p
         LEFT JOIN playlist_videos pv ON p.id = pv.playlist_id
-        LEFT JOIN videos v ON v.id = pv.video_id AND v.is_accessible = 1
+        LEFT JOIN videos v ON v.id = pv.video_id AND v.is_accessible = 1 AND v.is_hidden = 0
         GROUP BY p.id, p.name, p.updated_at
         ORDER BY p.updated_at DESC
         """,
@@ -112,13 +118,13 @@ interface PlaylistDao {
         """
         SELECT v.* FROM playlist_videos pv
         INNER JOIN videos v ON pv.video_id = v.id
-        WHERE pv.playlist_id = :playlistId AND v.is_accessible = 1
+        WHERE pv.playlist_id = :playlistId AND v.is_accessible = 1 AND v.is_hidden = 0
         ORDER BY pv.sort_order ASC
         """,
     )
     fun observePlaylistVideos(playlistId: Long): Flow<List<VideoEntity>>
 
-    @Query("SELECT v.id FROM playlist_videos pv JOIN videos v ON v.id = pv.video_id WHERE pv.playlist_id = :playlistId AND v.is_accessible = 1")
+    @Query("SELECT v.id FROM playlist_videos pv JOIN videos v ON v.id = pv.video_id WHERE pv.playlist_id = :playlistId AND v.is_accessible = 1 AND v.is_hidden = 0")
     suspend fun getVisibleVideoIds(playlistId: Long): List<Long>
 
     @Query("SELECT * FROM playlist_videos WHERE playlist_id = :playlistId ORDER BY sort_order ASC")

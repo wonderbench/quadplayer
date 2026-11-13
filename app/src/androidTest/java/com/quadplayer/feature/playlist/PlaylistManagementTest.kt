@@ -2,6 +2,10 @@ package com.quadplayer.feature.playlist
 
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.viewModelScope
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -10,6 +14,7 @@ import com.quadplayer.core.database.QuadPlayerDatabase
 import com.quadplayer.core.database.VideoEntity
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -41,6 +46,8 @@ class PlaylistManagementTest {
     @Test fun renameReorderByVideoIdAndDelete() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, QuadPlayerDatabase::class.java).build()
+        val store = ViewModelStore()
+        var modelJob: Job? = null
         try {
             val repository = DefaultPlaylistRepository(db.playlistDao(), db, context)
             val playlist = repository.createPlaylist("Original")
@@ -50,7 +57,16 @@ class PlaylistManagementTest {
                     width = 1, height = 1, mimeType = "video/mp4", dateModified = 0))
             }
             ids.forEach { repository.addVideo(playlist, it) }
-            val model = withContext(Dispatchers.Main) { PlaylistViewModel(SavedStateHandle(mapOf("playlistId" to playlist)), repository) }
+            val model = withContext(Dispatchers.Main) {
+                val factory = object : ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                        PlaylistViewModel(SavedStateHandle(mapOf("playlistId" to playlist)), repository) as T
+                }
+                ViewModelProvider(store, factory)[PlaylistViewModel::class.java].also {
+                    modelJob = it.viewModelScope.coroutineContext[Job]
+                }
+            }
             withTimeout(5000) { model.uiState.first { it.videos.size == 2 && it.name == "Original" } }
             withContext(Dispatchers.Main) { model.moveDown(ids[0]); model.rename("Renamed") }
             val updated = withTimeout(5000) { model.uiState.first { it.name == "Renamed" && it.videos.map { video -> video.id } == ids.reversed() } }
@@ -59,6 +75,10 @@ class PlaylistManagementTest {
             withContext(Dispatchers.Main) { model.delete { deleted.complete(Unit) } }
             withTimeout(5000) { deleted.await() }
             assertEquals(emptyList<Long>(), repository.playlists.first().map { it.id })
-        } finally { db.close() }
+        } finally {
+            withContext(Dispatchers.Main) { store.clear() }
+            modelJob?.join()
+            db.close()
+        }
     }
 }
