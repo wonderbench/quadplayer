@@ -36,6 +36,7 @@
     <string name="history_clear">清空播放记录</string>
     <string name="history_clear_confirmation">清空所有播放记录和续播位置？视频文件不会被删除。</string>
     <string name="history_change_failed">无法更新播放记录，请重试。</string>
+    <string name="external_video_open_failed">无法打开视频，请检查文件是否仍可访问。</string>
     <string name="home_my_playlists">我的播放列表</string>
     <string name="home_new_playlist">新建</string>
     <string name="home_create_playlist">创建播放列表</string>
