@@ -239,12 +239,16 @@ fun QuadPlayerScreen(
                     .align(Alignment.BottomCenter)
                     .onSizeChanged { bottomOverlayHeight = it.height }
                     .padding(8.dp),
-                viewModel = viewModel,
                 slots = state.slots,
                 linkedSeek = state.linkedSeek,
                 onPresets = { showPresets = true },
                 presetsReady = state.presetsReady,
                 onInteraction = { controlsInteractionVersion += 1 },
+                onTogglePlayAll = viewModel::togglePlayAll,
+                onSynchronize = viewModel::syncToAudioSource,
+                onToggleLinkedSeek = viewModel::toggleLinkedSeek,
+                onMuteAll = viewModel::muteAll,
+                onSetGlobalSpeed = viewModel::setGlobalSpeed,
             )
         }
         if (state.restoring) {
@@ -450,14 +454,18 @@ internal fun quadNoticeText(notice: QuadNotice): String =
     stringResource(notice.resourceId, *notice.arguments.toTypedArray())
 
 @Composable
-private fun BottomOverlay(
+internal fun BottomOverlay(
     modifier: Modifier,
-    viewModel: QuadPlayerViewModel,
     slots: List<QuadSlotUiState>,
     linkedSeek: Boolean,
     onPresets: () -> Unit,
     presetsReady: Boolean,
     onInteraction: () -> Unit,
+    onTogglePlayAll: () -> Unit,
+    onSynchronize: () -> Unit,
+    onToggleLinkedSeek: () -> Unit,
+    onMuteAll: () -> Unit,
+    onSetGlobalSpeed: (PlaybackSpeed) -> Unit,
 ) {
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -476,26 +484,26 @@ private fun BottomOverlay(
                 DepthChip(
                     onClick = {
                         onInteraction()
-                        viewModel.togglePlayAll()
+                        onTogglePlayAll()
                     },
                     label = { Text(stringResource(R.string.quad_play_pause_all)) },
                 )
                 DepthChip(
                     onClick = {
                         onInteraction()
-                        viewModel.syncToAudioSource()
+                        onSynchronize()
                     },
                     label = { Text(stringResource(R.string.quad_sync_to_audio)) },
                 )
                 DepthChoiceChip(
                     selected = linkedSeek,
-                    onClick = { onInteraction(); viewModel.toggleLinkedSeek() },
+                    onClick = { onInteraction(); onToggleLinkedSeek() },
                     label = { Text(stringResource(R.string.quad_linked_seek)) },
                 )
                 DepthChip(
                     onClick = {
                         onInteraction()
-                        viewModel.muteAll()
+                        onMuteAll()
                     },
                     label = { Text(stringResource(R.string.quad_mute_all)) },
                 )
@@ -506,7 +514,7 @@ private fun BottomOverlay(
                         selected = loaded.isNotEmpty() && loaded.all { it.playbackSpeed == speed },
                         onClick = {
                             onInteraction()
-                            viewModel.setGlobalSpeed(speed)
+                            onSetGlobalSpeed(speed)
                         },
                         label = { Text(speed.label) },
                     )
@@ -530,7 +538,7 @@ private fun QuadGrid(
 ) {
     @Composable
     fun Slot(index: Int, slotModifier: Modifier, audioTopInset: Dp = 4.dp, bottomInset: Dp = 0.dp) {
-        QuadSlotContent(slotModifier, state.slots[index], state.settings.subtitleStyle, viewModel, onAddVideo, onOpenMenu,
+        QuadSlotContent(slotModifier, state.slots[index], state.settings.subtitleStyle, viewModel.controllerAt(index)?.player, viewModel::retrySlot, onAddVideo, onOpenMenu,
             onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == index, audioTopInset, bottomInset)
     }
     when (state.layoutMode) {
@@ -562,7 +570,8 @@ private fun QuadSlotContent(
     modifier: Modifier,
     slot: QuadSlotUiState,
     subtitleStyle: SubtitleStyle,
-    viewModel: QuadPlayerViewModel,
+    playbackPlayer: androidx.media3.common.Player?,
+    onRetry: (Int) -> Unit,
     onAddVideo: (Int) -> Unit,
     onOpenMenu: (Int) -> Unit,
     onSwitchAudio: (Int) -> Unit,
@@ -618,7 +627,7 @@ private fun QuadSlotContent(
                     modifier = Modifier.fillMaxSize(),
                     factory = { viewContext ->
                         PlayerView(viewContext).apply {
-                            player = viewModel.controllerAt(slot.index)?.player
+                            player = playbackPlayer
                             useController = false
                             resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                             setShutterBackgroundColor(android.graphics.Color.BLACK)
@@ -626,7 +635,7 @@ private fun QuadSlotContent(
                         }
                     },
                     update = { playerView ->
-                        playerView.player = viewModel.controllerAt(slot.index)?.player
+                        playerView.player = playbackPlayer
                         playerView.keepScreenOn = slot.isPlaying
                         playerView.applySubtitleStyle(subtitleStyle)
                         playerView.setShutterBackgroundColor(android.graphics.Color.BLACK)
@@ -641,7 +650,7 @@ private fun QuadSlotContent(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(stringResource(playbackFailureShortText(slot.failure)), maxLines = 2)
                             Row {
-                                TextButton(onClick = { viewModel.retrySlot(slot.index) }) { Text(stringResource(R.string.player_retry)) }
+                                TextButton(onClick = { onRetry(slot.index) }) { Text(stringResource(R.string.player_retry)) }
                                 TextButton(onClick = { onAddVideo(slot.index) }) { Text(stringResource(R.string.quad_replace_video)) }
                             }
                         }
