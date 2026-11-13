@@ -132,6 +132,8 @@ class QuadPlaybackEngine(
         pending[slotIndex] = null
     }
 
+    fun cancelPendingLoads() { slots.indices.forEach(::cancelPending) }
+
     fun remove(slotIndex: Int) {
         cancelSynchronization()
         cancelPending(slotIndex)

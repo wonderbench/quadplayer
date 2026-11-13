@@ -72,7 +72,7 @@ class QuadImportInterruptionTest {
                 val factory = object : ViewModelProvider.Factory {
                     @Suppress("UNCHECKED_CAST")
                     override fun <T : ViewModel> create(modelClass: Class<T>): T = QuadPlayerViewModel(
-                        context, videos, DataStoreSettingsRepository(context), QuadSessionRepository(db.quadSessionDao()),
+                        context, videos, DataStoreSettingsRepository(context), QuadSessionRepository(db.quadSessionDao()), com.quadplayer.core.data.QuadPresetRepository(context),
                         DeviceCapabilityChecker(context), PerformanceMonitor(),
                     ) as T
                 }
