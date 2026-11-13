@@ -16,6 +16,8 @@ v1.0 提供调试版 APK，适用于 Android 8.0（API 26）及以上设备。�
 
 默认从 Google、Maven Central 和 Gradle 插件仓库下载依赖；如需优先使用国内镜像，可在构建命令中加 `-PuseChinaMirrors=true`。Gradle Wrapper 使用带 SHA-256 校验的 8.14 精简发行包。
 
+Gradle 依赖校验清单记录构建、测试和发布所用组件的 SHA-256；依赖升级后需重新生成并审阅新增校验值。当前清单根据本机构建时解析的依赖生成（含可选镜像来源），可检测之后的内容变化，但首次生成的哈希本身不证明上游来源可信；更新时应核对发布方的来源及校验值。
+
 `assembleRelease` 启用代码和资源压缩。要生成正式签名包，请在安全环境中提供四个环境变量：`QP_RELEASE_STORE_FILE`（密钥库路径）、`QP_RELEASE_STORE_PASSWORD`、`QP_RELEASE_KEY_ALIAS`、`QP_RELEASE_KEY_PASSWORD`。不要把密钥或密码提交到仓库；务必备份并持续使用同一正式密钥。未配置时构建产物为未签名包，不能直接发布。`QP_VERSION_CODE` 可指定正整数版本号，`QP_VERSION_NAME` 可指定显示版本；每次正式发布应确保版本号递增。已安装的 v1.0 调试包与正式签名包之间不能直接覆盖安装，需事先考虑用户数据迁移。
 
 正式发布工作流由推送 `vMAJOR.MINOR.PATCH` 标签触发：在仓库的 Actions secrets 中配置 `QP_RELEASE_KEYSTORE_BASE64`（正式密钥库文件的 Base64 内容）、`QP_RELEASE_STORE_PASSWORD`、`QP_RELEASE_KEY_ALIAS` 和 `QP_RELEASE_KEY_PASSWORD` 后，工作流会测试、构建并校验签名，然后创建 GitHub Release。版本号按 `MAJOR × 1000000 + MINOR × 1000 + PATCH` 计算（MINOR、PATCH 均不超过 999，结果不超过 2100000000），新标签必须生成比已发布版本更大的版本号。未配置密钥时工作流会失败，不会发布未签名包；应先在测试环境验证正式密钥和升级路径。
