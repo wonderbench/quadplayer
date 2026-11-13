@@ -15,7 +15,6 @@ import org.w3c.dom.Element
 
 plugins {
     alias(libs.plugins.androidApplication)
-    alias(libs.plugins.kotlinAndroid)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlinCompose)
     alias(libs.plugins.hilt)
@@ -155,6 +154,7 @@ android {
     sourceSets.getByName("androidTest").assets.srcDir("$projectDir/schemas")
     namespace = "com.quadplayer"
     compileSdk = 36
+    buildToolsVersion = "36.1.0"
 
     defaultConfig {
         applicationId = "com.quadplayer"
