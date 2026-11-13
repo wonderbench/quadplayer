@@ -91,9 +91,11 @@ data class VideoFile(
     val isFavorite: Boolean,
     val isManuallyAdded: Boolean,
     val localPath: String? = null,
+    // Stable library identity remains uriString; access may use a persisted document grant.
+    val accessUriString: String? = null,
 ) {
     val uri: Uri
-        get() = Uri.parse(uriString)
+        get() = Uri.parse(accessUriString ?: uriString)
 }
 
 data class FolderInfo(
