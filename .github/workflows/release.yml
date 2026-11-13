@@ -17,7 +17,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Ensure Android 16 SDK is installed
         run: |
           if [ ! -f "$ANDROID_HOME/platforms/android-36/android.jar" ]; then
