@@ -364,7 +364,6 @@ class QuadPlayerViewModel @Inject constructor(
                     if (slot != null) {
                         try {
                             val uri = Uri.parse(slot.uri)
-                            if (!canReadMedia(context, uri)) { failed = true; return@forEachIndexed }
                             val video = videoRepository.importVideo(uri)
                             if (video == null) { failed = true; return@forEachIndexed }
                             if (!loadAndInspect(index, video)) { failed = true; return@forEachIndexed }
