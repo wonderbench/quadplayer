@@ -1,4 +1,12 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.file.RegularFileProperty
+import org.gradle.api.provider.ListProperty
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.api.tasks.TaskAction
 
 plugins {
     alias(libs.plugins.androidApplication)
@@ -6,6 +14,32 @@ plugins {
     alias(libs.plugins.kotlinKapt)
     alias(libs.plugins.kotlinCompose)
     alias(libs.plugins.hilt)
+}
+
+abstract class VerifyThirdPartyNotices : DefaultTask() {
+    @get:Input abstract val components: ListProperty<String>
+    @get:InputFile @get:PathSensitive(PathSensitivity.RELATIVE)
+    abstract val recordedComponents: RegularFileProperty
+
+    @TaskAction fun verify() {
+        val actual = components.get().toSet()
+        val recorded = recordedComponents.get().asFile.readLines().map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+        check(actual == recorded) {
+            "Release dependencies changed; review licenses and update release_components.txt. " +
+                "Missing: ${actual - recorded}; no longer resolved: ${recorded - actual}"
+        }
+    }
+}
+
+tasks.register<VerifyThirdPartyNotices>("verifyThirdPartyNotices") {
+    recordedComponents.set(layout.projectDirectory.file("src/main/assets/licenses/release_components.txt"))
+    components.set(configurations.getByName("releaseRuntimeClasspath").incoming.artifacts.resolvedArtifacts.map { artifacts ->
+        artifacts.map { artifact ->
+            val id = artifact.id.componentIdentifier as? ModuleComponentIdentifier
+                ?: error("Unexpected non-module release dependency: ${artifact.id}")
+            "${id.group}:${id.module}:${id.version}"
+        }.distinct().sorted()
+    })
 }
 
 val releaseStore = providers.environmentVariable("QP_RELEASE_STORE_FILE").orNull

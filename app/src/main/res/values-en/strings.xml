@@ -143,6 +143,10 @@
     <string name="settings_crossfade_audio_desc">Use a short fade when changing the quad audio source.</string>
     <string name="settings_about_software">About</string>
     <string name="settings_about_software_desc">Learn about the app, requirements and controls.</string>
+    <string name="settings_open_source_licenses">Third-party licenses</string>
+    <string name="settings_open_source_licenses_desc">View components, fonts and their license notices.</string>
+    <string name="settings_licenses_loading">Loading license notices…</string>
+    <string name="settings_licenses_failed">Could not load license notices.</string>
     <string name="settings_about_software_subtitle">QuadPlayer features and guide</string>
     <string name="player_title">Player</string>
     <string name="player_more">More playback options</string>

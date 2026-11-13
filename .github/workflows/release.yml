@@ -59,7 +59,7 @@ jobs:
           trap 'rm -f "$QP_RELEASE_STORE_FILE"' EXIT
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$QP_RELEASE_STORE_FILE"
           chmod 600 "$QP_RELEASE_STORE_FILE"
-          bash ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleRelease --no-daemon
+          bash ./gradlew :app:verifyThirdPartyNotices :app:testDebugUnitTest :app:lintDebug :app:assembleRelease --no-daemon
           "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)/apksigner" verify --verbose app/build/outputs/apk/release/app-release.apk
       - name: Publish release
         env:
