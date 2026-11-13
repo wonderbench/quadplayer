@@ -255,7 +255,7 @@ private fun VideoList(
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Text(video.displayName, maxLines = 2, style = MaterialTheme.typography.titleSmall)
                             Text(
-                                text = stringResource(R.string.common_folder_duration, video.folderName, formatDuration(video.durationMs)),
+                                text = stringResource(R.string.common_folder_duration, if (video.folderPath == "imported") stringResource(R.string.media_imported_folder) else video.folderName, formatDuration(video.durationMs)),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

@@ -266,8 +266,9 @@ private fun AboutSoftwareEntry(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AboutSoftwareSheet(onDismiss: () -> Unit) {
-    val content = aboutSoftwareContent()
-    val sections = aboutVisualSections()
+    val context = LocalContext.current
+    val content = aboutSoftwareContent(context)
+    val sections = aboutVisualSections(context)
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(

@@ -64,7 +64,7 @@ class DatabaseMigrationTest {
             dao.upsert(video.copy(id = 3, uriString = "content://video/3", isFavorite = false))
             db.playlistDao().upsertEntries(listOf(PlaylistVideoEntity(1, 2, 1), PlaylistVideoEntity(1, 3, 2)))
             dao.upsert(video.copy(isAccessible = false))
-            val repository = DefaultPlaylistRepository(db.playlistDao(), db)
+            val repository = DefaultPlaylistRepository(db.playlistDao(), db, context)
             repository.swapVideos(1, 3, 2)
             assertEquals(listOf(3L, 2L), db.playlistDao().observePlaylistVideos(1).first().map { it.id })
             dao.upsert(video)

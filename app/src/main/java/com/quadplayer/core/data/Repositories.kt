@@ -1,6 +1,9 @@
 package com.quadplayer.core.data
 
 import android.net.Uri
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import com.quadplayer.R
 import android.util.Log
 import kotlinx.coroutines.CancellationException
 import androidx.room.withTransaction
@@ -162,6 +165,7 @@ class DefaultHistoryRepository @Inject constructor(
 class DefaultPlaylistRepository @Inject constructor(
     private val playlistDao: PlaylistDao,
     private val database: QuadPlayerDatabase,
+    @ApplicationContext private val context: Context,
 ) : PlaylistRepository {
     override val playlists: Flow<List<PlaylistSummary>> = playlistDao.observePlaylists().map { rows ->
         rows.map { it.toModel() }
@@ -175,7 +179,7 @@ class DefaultPlaylistRepository @Inject constructor(
         val now = System.currentTimeMillis()
         playlistDao.insertPlaylist(
             PlaylistEntity(
-                name = name.trim().ifBlank { "新播放列表" },
+                name = name.trim().ifBlank { context.getString(R.string.playlist_default_name) },
                 createdAt = now,
                 updatedAt = now,
             ),
@@ -185,7 +189,7 @@ class DefaultPlaylistRepository @Inject constructor(
     override suspend fun createPlaylistWithVideos(name: String, videoIds: List<Long>): Long = withContext(Dispatchers.IO) {
         database.withTransaction {
             val now = System.currentTimeMillis()
-            val id = playlistDao.insertPlaylist(PlaylistEntity(name = name.trim().ifBlank { "新播放列表" }, createdAt = now, updatedAt = now))
+            val id = playlistDao.insertPlaylist(PlaylistEntity(name = name.trim().ifBlank { context.getString(R.string.playlist_default_name) }, createdAt = now, updatedAt = now))
             playlistDao.upsertEntries(videoIds.distinct().mapIndexed { index, videoId -> PlaylistVideoEntity(id, videoId, index) })
             id
         }

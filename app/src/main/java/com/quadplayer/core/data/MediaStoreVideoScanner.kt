@@ -9,6 +9,7 @@ import android.provider.MediaStore
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import com.quadplayer.core.database.VideoEntity
+import com.quadplayer.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -111,14 +112,14 @@ class MediaStoreVideoScanner @Inject constructor(
                     val uri = ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, mediaId)
                     val folderPath = if (relativeIndex >= 0) cursor.getString(relativeIndex).orEmpty() else if (dataIndex >= 0) cursor.getString(dataIndex)?.substringBeforeLast('/', "").orEmpty() else ""
                     val folderName = cursor.getString(bucketIndex).orEmpty().ifBlank {
-                        folderPath.trimEnd('/').substringAfterLast('/', "本地视频")
+                        folderPath.trimEnd('/').substringAfterLast('/', context.getString(R.string.media_local_videos))
                     }
                     add(
                         VideoEntity(
                             uriString = uri.toString(),
-                            displayName = cursor.getString(nameIndex) ?: "视频 $mediaId",
+                            displayName = cursor.getString(nameIndex) ?: context.getString(R.string.media_fallback_video_number, mediaId),
                             folderPath = folderPath.ifBlank { "storage" },
-                            folderName = folderName.ifBlank { "本地视频" },
+                            folderName = folderName.ifBlank { context.getString(R.string.media_local_videos) },
                             durationMs = cursor.getLong(durationIndex).coerceAtLeast(0L),
                             sizeBytes = cursor.getLong(sizeIndex).coerceAtLeast(0L),
                             width = cursor.getInt(widthIndex),
@@ -160,9 +161,9 @@ class MediaStoreVideoScanner @Inject constructor(
         }.getOrDefault(Triple(0L, 0, 0))
         VideoEntity(
             uriString = uri.toString(),
-            displayName = metadata?.first?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment ?: "视频",
+            displayName = metadata?.first?.takeIf { it.isNotBlank() } ?: uri.lastPathSegment ?: context.getString(R.string.media_fallback_video),
             folderPath = "imported",
-            folderName = "手动导入",
+            folderName = context.getString(R.string.media_imported_folder),
             durationMs = dimensions.first,
             sizeBytes = metadata?.second ?: 0L,
             width = dimensions.second,
