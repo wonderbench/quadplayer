@@ -9,6 +9,7 @@ import com.quadplayer.core.model.PlaybackState
 import com.quadplayer.core.model.VideoFile
 import com.quadplayer.feature.player.PlayerController
 import com.quadplayer.feature.player.PlayerUiState
+import com.quadplayer.feature.player.PlaybackFailure
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,7 @@ data class QuadSlotUiState(
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
     val errorMessage: String? = null,
+    val failure: PlaybackFailure? = null,
     val playWhenReady: Boolean = false,
     val playbackEnded: Boolean = false,
 )
@@ -54,7 +56,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
                     QuadSlotUiState(
                         index = index, video = current.video, isPlaying = state.isPlaying,
                         playbackSpeed = state.playbackSpeed, positionMs = state.currentPositionMs,
-                        durationMs = state.durationMs, errorMessage = state.errorMessage,
+                        durationMs = state.durationMs, errorMessage = state.errorMessage, failure = state.failure,
                         playWhenReady = state.playWhenReady,
                         playbackEnded = state.playbackState == PlaybackState.ENDED,
                     )

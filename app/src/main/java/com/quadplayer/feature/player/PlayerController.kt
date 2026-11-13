@@ -67,6 +67,7 @@ data class PlayerUiState(
     val selectedExternalSubtitle: String? = null,
     val selectedExternalAudio: String? = null,
     val errorMessage: String? = null,
+    val failure: PlaybackFailure? = null,
     val playWhenReady: Boolean = false,
     val videoSize: VideoSize = VideoSize.UNKNOWN,
 )
@@ -112,6 +113,7 @@ class PlayerController(
             _uiState.value = _uiState.value.copy(
                 playbackState = PlaybackState.ERROR,
                 errorMessage = error.message ?: error.errorCodeName,
+                failure = classifyPlaybackFailure(error.errorCode, error.cause),
             )
         }
     }
@@ -162,7 +164,7 @@ class PlayerController(
             subtitleSelectionExplicit = false
             externalAudioUri = null
         }
-        _uiState.value = _uiState.value.copy(errorMessage = null, videoSize = if (isNewVideo) VideoSize.UNKNOWN else _uiState.value.videoSize)
+        _uiState.value = _uiState.value.copy(errorMessage = null, failure = null, videoSize = if (isNewVideo) VideoSize.UNKNOWN else _uiState.value.videoSize)
         currentVideo = video
         if (isNewVideo) {
             val matchingFile = withContext(Dispatchers.IO) { findLocalSubtitle(video.localPath) }
@@ -221,13 +223,13 @@ class PlayerController(
         player.pause()
         player.stop()
         player.clearMediaItems()
-        _uiState.value = _uiState.value.copy(errorMessage = null, videoSize = VideoSize.UNKNOWN)
+        _uiState.value = _uiState.value.copy(errorMessage = null, failure = null, videoSize = VideoSize.UNKNOWN)
         updateStateFromPlayer()
     }
 
     fun retry() {
         if (currentVideo == null) return
-        _uiState.value = _uiState.value.copy(errorMessage = null)
+        _uiState.value = _uiState.value.copy(errorMessage = null, failure = null)
         player.prepare()
         player.play()
     }

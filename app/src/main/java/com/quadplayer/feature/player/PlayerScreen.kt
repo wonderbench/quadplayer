@@ -230,7 +230,7 @@ fun PlayerScreen(
     }
 
     val playerMessage = state.statusMessage ?: if (state.playerState.errorMessage != null) {
-        stringResource(R.string.player_error_failed)
+        stringResource(playbackFailureText(state.playerState.failure))
     } else {
         null
     }
