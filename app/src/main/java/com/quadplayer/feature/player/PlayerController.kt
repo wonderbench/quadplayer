@@ -70,6 +70,7 @@ data class PlayerUiState(
     val failure: PlaybackFailure? = null,
     val playWhenReady: Boolean = false,
     val videoSize: VideoSize = VideoSize.UNKNOWN,
+    val repeatOne: Boolean = false,
 )
 
 @OptIn(UnstableApi::class)
@@ -103,6 +104,10 @@ class PlayerController(
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
             _uiState.value = _uiState.value.copy(videoSize = videoSize)
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            _uiState.value = _uiState.value.copy(repeatOne = repeatMode == Player.REPEAT_MODE_ONE)
         }
 
         override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {

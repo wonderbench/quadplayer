@@ -261,6 +261,7 @@ fun QuadPlayerScreen(
             onFocus = { viewModel.focusSlot(slotIndex); menuSlot = null },
             onEnlarge = { viewModel.focusSlot(slotIndex, single = true); menuSlot = null },
             onTogglePlayback = { viewModel.toggleSlot(slotIndex); menuSlot = null },
+            onToggleRepeat = { viewModel.setSlotRepeat(slotIndex, !slot.repeatOne); menuSlot = null },
             onSetSpeed = { speed -> viewModel.setSlotSpeed(slotIndex, speed); menuSlot = null },
             onSwitchAudio = { viewModel.toggleAudioSource(slotIndex); menuSlot = null },
             onReplace = {
@@ -636,6 +637,7 @@ private fun SlotMenuDialog(
     onFocus: () -> Unit,
     onEnlarge: () -> Unit,
     onTogglePlayback: () -> Unit,
+    onToggleRepeat: () -> Unit,
     onSetSpeed: (PlaybackSpeed) -> Unit,
     onSwitchAudio: () -> Unit,
 ) {
@@ -662,6 +664,9 @@ private fun SlotMenuDialog(
                 }
                 item {
                     TextButton(onClick = onSwitchAudio) { Text(stringResource(R.string.quad_select_audio)) }
+                }
+                item {
+                    DepthChoiceChip(selected = slot.repeatOne, onClick = onToggleRepeat, label = { Text(stringResource(R.string.quad_repeat_video)) })
                 }
                 item {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {

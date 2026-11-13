@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="quad_repeat_video">Repeat this video</string>
     <string name="app_name">QuadPlayer</string>
     <string name="nav_home">Home</string>
     <string name="nav_folders">Folders</string>

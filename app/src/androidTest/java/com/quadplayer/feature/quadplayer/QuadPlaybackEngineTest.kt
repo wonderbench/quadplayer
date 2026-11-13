@@ -25,6 +25,43 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class QuadPlaybackEngineTest {
+    @Test fun repeatIsPerVideoFollowsSwapAndReallyLoops() = runBlocking(Dispatchers.Main) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = File(context.cacheDir, "quad-repeat.wav")
+        val samples = ByteArray(16000 * 2)
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray()).putInt(36 + samples.size).put("WAVEfmt ".toByteArray())
+            .putInt(16).putShort(1).putShort(1).putInt(16000).putInt(32000)
+            .putShort(2).putShort(16).put("data".toByteArray()).putInt(samples.size)
+        file.writeBytes(header.array() + samples)
+        fun video(id: Long) = VideoFile(id, Uri.fromFile(file).toString(), "test$id", "test", "test", 1000, file.length(), 0, 0, "audio/wav", 0, false, true)
+        val engine = QuadPlaybackEngine(context)
+        try {
+            engine.load(0, video(1)); engine.load(1, video(2))
+            engine.setSlotPlaying(0, false); engine.setSlotPlaying(1, false)
+            engine.setSlotRepeat(0, true)
+            val repeating = engine.controllerAt(0)!!.player
+            val looped = CompletableDeferred<Unit>()
+            repeating.addListener(object : Player.Listener {
+                override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                    if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) looped.complete(Unit)
+                }
+            })
+            withTimeout(10000) { while (!repeating.isCurrentMediaItemSeekable) delay(50) }
+            engine.swap(0, 1)
+            assertFalse(engine.slotStates(flowOf(-1)).first()[0].repeatOne)
+            assertTrue(engine.slotStates(flowOf(-1)).first()[1].repeatOne)
+            repeating.seekTo(800)
+            engine.setSlotPlaying(1, true)
+            withTimeout(10000) { looped.await() }
+            engine.setSlotRepeat(1, false)
+            assertEquals(Player.REPEAT_MODE_OFF, repeating.repeatMode)
+            engine.setSlotRepeat(1, true)
+            engine.load(1, video(3))
+            assertEquals(Player.REPEAT_MODE_OFF, engine.controllerAt(1)!!.player.repeatMode)
+        } finally { engine.release(); file.delete() }
+    }
+
     @Test fun linkedSeekMovesRealPlayersWithoutChangingPauseState() = runBlocking(Dispatchers.Main) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val file = File(context.cacheDir, "quad-linked-seek.wav")
