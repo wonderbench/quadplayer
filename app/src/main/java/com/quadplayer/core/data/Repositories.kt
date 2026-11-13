@@ -122,27 +122,28 @@ class DefaultVideoRepository @Inject constructor(
     }
 
     override suspend fun importVideo(uri: Uri): VideoFile? = withContext(Dispatchers.IO) { manualAccessLock.withLock {
-        val imported = scanner.inspectImportedVideo(uri) ?: run {
-            // Re-establish the MediaStore equivalent of a retained document grant after restart.
-            if (uri.authority != android.provider.MediaStore.AUTHORITY || uri.toString() !in scanner.persistedMediaUris()) return@withLock null
-            scanner.inspectImportedVideo(uri) ?: return@withLock null
-        }
-        val mediaUri = scanner.persistedMediaUri(uri)
+        // A grant for a Files URI does not necessarily grant access to the scanned Video URI.
+        val accessUri = scanner.persistedVideoDocuments()[uri.toString()] ?: uri
+        val imported = scanner.inspectImportedVideo(accessUri) ?: return@withLock null
+        val mediaUri = scanner.persistedMediaUri(accessUri)
         val normalized = if (mediaUri != null) imported.copy(uriString = mediaUri.toString(), isManuallyAdded = false) else imported
         database.withTransaction {
             val existing = videoDao.getByUriString(normalized.uriString)
-            if (existing != null) {
+            val video = if (existing != null) {
                 if (!existing.isAccessible || existing.isHidden) videoDao.markAvailable(existing.id)
                 existing.copy(isAccessible = true, isHidden = false).toModel()
             } else {
                 val id = videoDao.upsert(normalized)
                 (videoDao.getById(id) ?: normalized.copy(id = id)).toModel()
             }
+            video.copy(accessUriString = accessUri.toString().takeIf { it != video.uriString })
         }
     } }
 
     override suspend fun getVideo(videoId: Long): VideoFile? = withContext(Dispatchers.IO) {
-        videoDao.getById(videoId)?.takeIf { it.isAccessible && !it.isHidden }?.toModel()
+        videoDao.getById(videoId)?.takeIf { it.isAccessible && !it.isHidden }?.toModel()?.let { video ->
+            video.copy(accessUriString = scanner.persistedVideoDocuments()[video.uriString]?.toString())
+        }
     }
 
     override suspend fun toggleFavorite(videoId: Long) = withContext(Dispatchers.IO) {
