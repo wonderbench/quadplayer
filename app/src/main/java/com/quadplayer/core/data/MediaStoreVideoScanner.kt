@@ -15,6 +15,18 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Match the same canonical URI used by scanVideos, only for verified primary-volume video rows. */
+internal fun canonicalScannedVideoUri(mapped: Uri, rowId: Long, mediaType: Int?, volume: String?): Uri? {
+    if (mapped.scheme != "content" || mapped.authority != MediaStore.AUTHORITY || rowId < 0) return null
+    val path = mapped.pathSegments
+    val isVideo = path.size == 4 && path[1] == "video" && path[2] == "media"
+    val isFile = path.size == 3 && path[1] == "file"
+    if ((!isVideo && !isFile) || path.lastOrNull()?.toLongOrNull() != rowId) return null
+    if (path[0] != MediaStore.VOLUME_EXTERNAL && path[0] != MediaStore.VOLUME_EXTERNAL_PRIMARY) return null
+    if (volume != MediaStore.VOLUME_EXTERNAL_PRIMARY || (isFile && mediaType != MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO)) return null
+    return ContentUris.withAppendedId(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, rowId)
+}
+
 @Singleton
 class MediaStoreVideoScanner @Inject constructor(
     @ApplicationContext private val context: Context,
@@ -29,19 +41,33 @@ class MediaStoreVideoScanner @Inject constructor(
 
     fun persistedMediaUris(): Set<String> {
         if (Build.VERSION.SDK_INT < 29) return emptySet()
+        return persistedVideoDocuments().keys
+    }
+
+    fun persistedVideoDocuments(): Map<String, Uri> {
+        if (Build.VERSION.SDK_INT < 29) return emptyMap()
         return context.contentResolver.persistedUriPermissions.asSequence()
             .filter { it.isReadPermission }
-            .mapNotNull { mappedReadableVideoUri(it.uri)?.toString() }
-            .toSet()
+            .mapNotNull { grant -> mappedReadableVideoUri(grant.uri)?.toString()?.let { it to grant.uri } }
+            .toMap()
     }
 
     private fun mappedReadableVideoUri(uri: Uri): Uri? {
         if (Build.VERSION.SDK_INT < 29 || !DocumentsContract.isDocumentUri(context, uri)) return null
         return runCatching {
             val mapped = MediaStore.getMediaUri(context, uri) ?: return@runCatching null
-            if (mapped.authority != MediaStore.AUTHORITY || !mapped.path.orEmpty().contains("/video/media/")) return@runCatching null
-            val readable = context.contentResolver.openFileDescriptor(mapped, "r")?.use { true } ?: false
-            mapped.takeIf { readable }
+            val resolver = context.contentResolver
+            val fileRow = mapped.pathSegments.let { it.size == 3 && it[1] == "file" }
+            val columns = if (fileRow) arrayOf(MediaStore.MediaColumns._ID, MediaStore.Files.FileColumns.MEDIA_TYPE, MediaStore.MediaColumns.VOLUME_NAME)
+                else arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.VOLUME_NAME)
+            val canonical = resolver.query(mapped, columns, null, null, null)?.use { cursor ->
+                if (!cursor.moveToFirst()) null else canonicalScannedVideoUri(
+                    mapped, cursor.getLong(0), if (fileRow) cursor.getInt(1) else null,
+                    cursor.getString(if (fileRow) 2 else 1),
+                )
+            } ?: return@runCatching null
+            val readable = resolver.openFileDescriptor(uri, "r")?.use { true } ?: false
+            canonical.takeIf { readable }
         }.getOrNull()
     }
 
