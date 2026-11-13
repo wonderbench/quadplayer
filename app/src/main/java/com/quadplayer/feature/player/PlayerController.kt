@@ -93,7 +93,7 @@ class PlayerController(
     private val compactLocalBuffer: Boolean = false,
     private val beforeSubtitleInspection: suspend (Uri) -> Unit = {},
     private val rememberTrackChoices: Boolean = false,
-) : QuadPlayerHandle {
+) : SinglePlayerHandle {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val dataSourceFactory = DefaultDataSource.Factory(context)
     private var trackSelector = DefaultTrackSelector(context)
@@ -160,7 +160,7 @@ class PlayerController(
     private var playerInternal: ExoPlayer = buildPlayer(currentSettings.decoderMode)
     override val player: ExoPlayer
         get() = playerInternal
-    var onPlayerRebuilt: ((ExoPlayer) -> Unit)? = null
+    override var onPlayerRebuilt: ((Player) -> Unit)? = null
 
     private var progressJob: Job? = null
     private val progressUpdatesEnabled = MutableStateFlow(true)
@@ -318,7 +318,7 @@ class PlayerController(
         }
     }
 
-    suspend fun setExternalSubtitle(uri: Uri?) {
+    override suspend fun setExternalSubtitle(uri: Uri?) {
         val request = ++subtitleSelectionGeneration
         pendingTextChoice = null
         val videoBeforeQuery = currentVideo?.uriString
@@ -347,7 +347,7 @@ class PlayerController(
         reloadCurrent()
     }
 
-    suspend fun setExternalAudio(uri: Uri?) {
+    override suspend fun setExternalAudio(uri: Uri?) {
         audioChoiceGeneration++
         pendingAudioChoice = null
         externalAudioUri = uri
@@ -365,7 +365,7 @@ class PlayerController(
         reloadCurrent()
     }
 
-    fun togglePlayPause() {
+    override fun togglePlayPause() {
         if (player.isPlaying) player.pause() else player.play()
     }
 
@@ -404,7 +404,7 @@ class PlayerController(
         player.seekTo(positionMs.coerceAtLeast(0L))
     }
 
-    fun seekBy(deltaMs: Long) {
+    override fun seekBy(deltaMs: Long) {
         seekTo(player.currentPosition + deltaMs)
     }
 
@@ -438,7 +438,7 @@ class PlayerController(
         _uiState.value = _uiState.value.copy(loopStartMs = null, loopEndMs = null)
     }
 
-    fun cycleAspectMode() {
+    override fun cycleAspectMode() {
         val next = when (_uiState.value.aspectMode) {
             AspectMode.FIT -> AspectMode.FILL
             AspectMode.FILL -> AspectMode.ZOOM
@@ -450,7 +450,7 @@ class PlayerController(
         _uiState.value = _uiState.value.copy(aspectMode = next)
     }
 
-    fun selectAudioTrack(option: TrackOption?) {
+    override fun selectAudioTrack(option: TrackOption?) {
         audioChoiceGeneration++
         pendingAudioChoice = null
         saveTrackChoice("audio", option)
@@ -465,7 +465,7 @@ class PlayerController(
         updateStateFromPlayer()
     }
 
-    fun selectSubtitleTrack(option: TrackOption?) {
+    override fun selectSubtitleTrack(option: TrackOption?) {
         subtitleSelectionGeneration++
         pendingTextChoice = null
         saveTrackChoice("text", option)

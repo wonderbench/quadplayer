@@ -43,8 +43,9 @@ class PlaybackSession(
     private val playlistRepository: PlaylistRepository,
     private val historyWriteQueue: HistoryWriteQueue,
     private val settingsRepository: SettingsRepository,
+    playerFactory: (android.content.Context) -> SinglePlayerHandle = { PlayerController(it, handleAudioFocus = true, rememberTrackChoices = true) },
 ) : ViewModel() {
-    private val playerController = PlayerController(context, handleAudioFocus = true, rememberTrackChoices = true)
+    private val playerController = playerFactory(context)
     private val historySession = PlaybackHistorySession(historyWriteQueue)
     private val video = MutableStateFlow<VideoFile?>(null)
     private val controlsVisible = MutableStateFlow(true)
@@ -73,7 +74,7 @@ class PlaybackSession(
         playback.copy(queue = currentQueue)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlayerScreenState())
 
-    val controller: PlayerController
+    val controller: SinglePlayerHandle
         get() = playerController
 
     internal fun currentVideoUri(): String? = video.value?.uriString
