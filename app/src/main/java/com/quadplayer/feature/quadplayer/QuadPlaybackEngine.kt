@@ -11,12 +11,25 @@ import com.quadplayer.feature.player.PlayerController
 import com.quadplayer.feature.player.PlayerUiState
 import com.quadplayer.feature.player.PlaybackFailure
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlin.coroutines.resume
 
 data class QuadSlotUiState(
     val index: Int,
@@ -36,7 +49,11 @@ data class QuadSlotUiState(
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class QuadPlaybackEngine(private val context: Context, private val beforeLoad: suspend (VideoFile) -> Unit = {}) {
+class QuadPlaybackEngine(
+    private val context: Context,
+    private val awaitReadyOverride: (suspend (Player) -> Boolean)? = null,
+    private val beforeLoad: suspend (VideoFile) -> Unit = {},
+) {
     private data class Slot(val video: VideoFile? = null, val controller: PlayerController? = null)
     private val slots = List(4) { MutableStateFlow(Slot()) }
     private val volumes = MutableList(4) { 0f }
@@ -48,6 +65,9 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     private var suspended = false
     private var interrupted = false
     private val resumeIntents = mutableMapOf<PlayerController, Boolean>()
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private class SyncOperation(val playIntents: Map<PlayerController, Boolean>) { var job: Job? = null }
+    private var synchronization: SyncOperation? = null
 
     fun controllerAt(index: Int): PlayerController? = slots[index].value.controller
     internal fun hasController(index: Int): Boolean = slots[index].value.controller != null
@@ -74,6 +94,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     }
 
     suspend fun load(slotIndex: Int, video: VideoFile): Boolean {
+        cancelSynchronization()
         cancelPending(slotIndex)
         val generation = generations[slotIndex]
         val old = slots[slotIndex].value.controller
@@ -86,6 +107,9 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
             if (generation != generations[slotIndex]) return false
             if (!controller.load(video, playWhenReady = false) || generation != generations[slotIndex]) return false
             if (slots[slotIndex].value.controller !== old) return false
+            // A load can finish after synchronization has started for the old slot.
+            cancelSynchronization()
+            if (generation != generations[slotIndex] || slots[slotIndex].value.controller !== old) return false
             val selectedSpeed = old?.player?.playbackParameters?.speed?.let(PlaybackSpeed::fromValue) ?: globalSpeed
             selectedSpeed?.let(controller::setPlaybackSpeed)
             controller.player.volume = volumes[slotIndex]
@@ -109,6 +133,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     }
 
     fun remove(slotIndex: Int) {
+        cancelSynchronization()
         cancelPending(slotIndex)
         val controller = slots[slotIndex].value.controller
         slots[slotIndex].value = Slot()
@@ -118,9 +143,11 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
 
     fun suspendPlayback() {
         if (suspended) return
+        val priorIntents = synchronization?.playIntents
+        cancelSynchronization(restore = false)
         suspended = true
         slots.mapNotNull { it.value.controller }.forEach { controller ->
-            resumeIntents[controller] = controller.player.playWhenReady
+            resumeIntents[controller] = priorIntents?.get(controller) ?: controller.player.playWhenReady
             controller.pause()
         }
     }
@@ -135,6 +162,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     }
 
     fun setSlotPlaying(slotIndex: Int, playing: Boolean) {
+        cancelSynchronization()
         val controller = slots[slotIndex].value.controller ?: return
         val shouldPlay = playing && !interrupted
         if (suspended) {
@@ -144,7 +172,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     }
 
     fun hasPlayIntent(): Boolean = slots.mapNotNull { it.value.controller }.any {
-        if (suspended) resumeIntents[it] == true else it.player.playWhenReady
+        if (suspended) resumeIntents[it] == true else synchronization?.playIntents?.get(it) ?: it.player.playWhenReady
     }
 
     fun pauseAll() {
@@ -152,6 +180,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     }
 
     fun interruptPlayback() {
+        cancelSynchronization(restore = false)
         interrupted = true
         pauseAll()
     }
@@ -162,6 +191,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
 
     fun swap(first: Int, second: Int) {
         if (first == second) return
+        cancelSynchronization()
         cancelPending(first)
         cancelPending(second)
         val firstSlot = slots[first].value
@@ -176,6 +206,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     }
 
     fun togglePlayAll() {
+        cancelSynchronization()
         val populated = slots.mapNotNull { it.value.controller }
         val anyPlaying = populated.any { it.player.playWhenReady }
         populated.forEach { if (anyPlaying) it.pause() else it.play() }
@@ -184,6 +215,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     fun currentPosition(slotIndex: Int): Long? = slots[slotIndex].value.controller?.player?.currentPosition
 
     fun toggleSlot(slotIndex: Int) {
+        cancelSynchronization()
         val player = slots[slotIndex].value.controller?.player ?: return
         if (player.playbackState == Player.STATE_ENDED) {
             player.seekToDefaultPosition()
@@ -196,30 +228,108 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     }
 
     fun setSlotRepeat(slotIndex: Int, enabled: Boolean) {
+        cancelSynchronization()
         val controller = slots[slotIndex].value.controller ?: return
         if (enabled) controller.clearLoop()
         controller.player.repeatMode = if (enabled) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
     }
 
-    fun setLoopStart(slotIndex: Int): Boolean = slots[slotIndex].value.controller?.setLoopStart() ?: false
-    fun setLoopEnd(slotIndex: Int): Boolean = slots[slotIndex].value.controller?.setLoopEnd() ?: false
-    fun clearLoop(slotIndex: Int) { slots[slotIndex].value.controller?.clearLoop() }
+    fun setLoopStart(slotIndex: Int): Boolean { cancelSynchronization(); return slots[slotIndex].value.controller?.setLoopStart() ?: false }
+    fun setLoopEnd(slotIndex: Int): Boolean { cancelSynchronization(); return slots[slotIndex].value.controller?.setLoopEnd() ?: false }
+    fun clearLoop(slotIndex: Int) { cancelSynchronization(); slots[slotIndex].value.controller?.clearLoop() }
 
-    fun syncToPosition(positionMs: Long) {
-        slots.forEach { slot ->
-            slot.value.controller?.let { controller ->
-                val duration = controller.player.duration
-                controller.seekTo(if (duration > 0) positionMs.coerceAtMost(duration) else positionMs)
+    /** Pauses populated slots, aligns followers and restores only their previous play intents. */
+    fun synchronize(sourceIndex: Int, onFinished: (Boolean) -> Unit): Boolean {
+        cancelSynchronization()
+        if (suspended || interrupted) return false
+        val source = slots.getOrNull(sourceIndex)?.value?.controller ?: return false
+        val controllers = slots.mapNotNull { it.value.controller }
+        val followers = controllers.filter { it !== source }
+        if (controllers.any { it.uiState.value.loopEndMs != null } || followers.any { !it.player.isCurrentMediaItemSeekable }) return false
+        val op = SyncOperation(controllers.associateWith { it.player.playWhenReady })
+        synchronization = op
+        controllers.forEach {
+            if (synchronization !== op) return false
+            it.pause()
+        }
+        if (synchronization !== op) return false
+        val target = source.player.currentPosition.coerceAtLeast(0L)
+        val limited = followers.any { it.player.duration > 0 && target >= it.player.duration }
+        op.job = scope.launch(start = CoroutineStart.LAZY) {
+            val success = try {
+                followers.forEach { controller ->
+                    if (synchronization !== op) return@launch
+                    val duration = controller.player.duration
+                    val position = if (duration > 0) target.coerceAtMost((duration - 1).coerceAtLeast(0)) else target
+                    controller.seekTo(position)
+                }
+                if (synchronization !== op) return@launch
+                withTimeoutOrNull(10_000) {
+                    coroutineScope {
+                        followers.map { controller -> async { awaitReadyOverride?.invoke(controller.player) ?: awaitSeekReady(controller.player) } }.awaitAll().all { it }
+                    }
+                } == true && !limited
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) { false }
+            if (synchronization === op) {
+                synchronization = null
+                restoreSyncIntents(op)
+                onFinished(success)
+            }
+        }
+        if (synchronization !== op) { op.job?.cancel(); return false }
+        op.job?.start()
+        return true
+    }
+
+    fun cancelSynchronization() = cancelSynchronization(restore = true)
+
+    private fun cancelSynchronization(restore: Boolean) {
+        val op = synchronization ?: return
+        synchronization = null
+        op.job?.cancel()
+        if (restore && !suspended && !interrupted) restoreSyncIntents(op)
+    }
+
+    private fun restoreSyncIntents(op: SyncOperation) {
+        val present = slots.mapNotNull { it.value.controller }.toSet()
+        op.playIntents.forEach { (controller, playing) ->
+            if (controller in present) {
+                if (playing) controller.play() else controller.pause()
             }
         }
     }
 
+    private suspend fun awaitSeekReady(player: Player): Boolean {
+        if (player.playerError != null || player.playbackState == Player.STATE_ENDED) return false
+        if (player.playbackState == Player.STATE_READY) return true
+        return suspendCancellableCoroutine { continuation ->
+            val listener = object : Player.Listener {
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (playbackState == Player.STATE_READY || playbackState == Player.STATE_ENDED) {
+                        player.removeListener(this)
+                        if (continuation.isActive) continuation.resume(playbackState == Player.STATE_READY)
+                    }
+                }
+                override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    player.removeListener(this)
+                    if (continuation.isActive) continuation.resume(false)
+                }
+            }
+            player.addListener(listener)
+            continuation.invokeOnCancellation { player.removeListener(listener) }
+        }
+    }
+
     fun seekSlot(slotIndex: Int, positionMs: Long) {
+        cancelSynchronization()
         slots[slotIndex].value.controller?.seekTo(positionMs)
     }
 
     /** Null means at least one loaded video is not yet seekable. */
     fun seekLinked(slotIndex: Int, positionMs: Long): Boolean? {
+        cancelSynchronization()
         val source = slots[slotIndex].value.controller ?: return null
         val controllers = slots.mapNotNull { it.value.controller }
         if (controllers.any { !it.player.isCurrentMediaItemSeekable }) return null
@@ -234,6 +344,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     }
 
     suspend fun applySettings(settings: AppSettings) {
+        cancelSynchronization()
         this.settings = settings
         slots.forEach { it.value.controller?.applySettings(settings) }
     }
@@ -251,7 +362,7 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
             video.uriString,
             controller.player.currentPosition.coerceAtLeast(0L),
             controller.player.playbackParameters.speed,
-            if (suspended) resumeIntents[controller] ?: false else controller.player.playWhenReady,
+            if (suspended) resumeIntents[controller] ?: false else synchronization?.playIntents?.get(controller) ?: controller.player.playWhenReady,
         )
     }
 
@@ -261,6 +372,8 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
     }
 
     fun release() {
+        cancelSynchronization(restore = false)
+        scope.cancel()
         slots.forEachIndexed { index, _ -> remove(index) }
     }
 }
