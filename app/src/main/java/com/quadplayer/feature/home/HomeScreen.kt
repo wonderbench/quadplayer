@@ -14,8 +14,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Favorite
@@ -50,6 +52,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -73,6 +76,7 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val historyError by viewModel.historyError.collectAsStateWithLifecycle()
+    val compactHeight = LocalConfiguration.current.screenHeightDp < 480
     val permission = rememberMediaAccess(viewModel::refresh)
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var playlistTarget by remember { mutableStateOf<VideoFile?>(null) }
@@ -112,7 +116,7 @@ fun HomeScreen(
             Image(
                 painter = painterResource(R.drawable.app_logo),
                 contentDescription = stringResource(R.string.app_name),
-                modifier = Modifier.size(56.dp),
+                modifier = Modifier.size(if (compactHeight) 40.dp else 56.dp),
                 contentScale = ContentScale.Fit,
             )
             Text(
@@ -128,20 +132,22 @@ fun HomeScreen(
         if (permission.partial) {
             TextButton(onClick = permission.request) { Text(stringResource(R.string.media_partial_access)) }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.home_tab_library),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(12.dp))
+        if (!compactHeight) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.home_tab_library),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.height(if (compactHeight) 4.dp else 12.dp))
         QuietTextField(
             value = uiState.searchQuery,
             onValueChange = viewModel::updateSearchQuery,
             modifier = Modifier.fillMaxWidth(),
             label = { Text(stringResource(R.string.home_search_label)) },
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(if (compactHeight) 4.dp else 12.dp))
 
         val tabs = listOf(
             stringResource(R.string.home_tab_library),
@@ -165,7 +171,7 @@ fun HomeScreen(
                 )
             }
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(if (compactHeight) 4.dp else 12.dp))
 
         when (selectedTab) {
             0 -> VideoList(
@@ -235,8 +241,8 @@ private fun VideoList(
         return
     }
 
-    LazyColumn(contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(videos, key = { it.id }) { video ->
+    LazyVerticalGrid(columns = GridCells.Adaptive(320.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        gridItems(videos, key = { it.id }) { video ->
             DepthCard(onClick = { onOpenVideo(video.id) }) {
                 Column(
                     modifier = Modifier
@@ -288,16 +294,16 @@ internal fun RecentList(
     onClear: () -> Unit,
 ) {
     var confirmingClear by remember { mutableStateOf(false) }
-    LazyColumn(contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
+    LazyVerticalGrid(columns = GridCells.Adaptive(320.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = { confirmingClear = true }) { Text(stringResource(R.string.history_clear)) }
             }
         }
         if (items.isEmpty()) {
-            item { EmptyStateText(emptyText) }
+            item(span = { GridItemSpan(maxLineSpan) }) { EmptyStateText(emptyText) }
         }
-        items(items, key = { it.video.id }) { item ->
+        gridItems(items, key = { it.video.id }) { item ->
             DepthCard(onClick = { onOpenVideo(item.video.id) }) {
                 Row(
                     modifier = Modifier
@@ -356,8 +362,8 @@ private fun PlaylistList(
         if (playlists.isEmpty()) {
             EmptyStateText(emptyText)
         } else {
-            LazyColumn(contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(playlists, key = { it.id }) { playlist ->
+            LazyVerticalGrid(columns = GridCells.Adaptive(320.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                gridItems(playlists, key = { it.id }) { playlist ->
                     DepthCard(onClick = { onOpenPlaylist(playlist.id) }) {
                         Column(
                             modifier = Modifier
