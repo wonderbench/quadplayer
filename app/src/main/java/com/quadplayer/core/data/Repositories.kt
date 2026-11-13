@@ -93,29 +93,37 @@ class DefaultVideoRepository @Inject constructor(
             Log.w("VideoRepository", "MediaStore scan failed; retaining cached videos", failure)
             return
         }
+        val authorizedUris = withContext(Dispatchers.IO) { scanner.persistedMediaUris() }
         database.withTransaction {
-            val changes = calculateScanChanges(videoDao.getAll(), scanned)
+            val changes = calculateScanChanges(videoDao.getAll(), scanned, authorizedUris)
             changes.hideIds.chunked(500).forEach { videoDao.markUnavailable(it) }
             if (changes.upserts.isNotEmpty()) videoDao.upsertAll(changes.upserts)
         }
     }
 
     override suspend fun importVideo(uri: Uri): VideoFile? = withContext(Dispatchers.IO) {
-        val imported = scanner.inspectImportedVideo(uri) ?: return@withContext null
+        // A grant for a Files URI does not necessarily grant access to the scanned Video URI.
+        val accessUri = scanner.persistedVideoDocuments()[uri.toString()] ?: uri
+        val imported = scanner.inspectImportedVideo(accessUri) ?: return@withContext null
+        val mediaUri = scanner.persistedMediaUri(accessUri)
+        val normalized = if (mediaUri != null) imported.copy(uriString = mediaUri.toString(), isManuallyAdded = false) else imported
         database.withTransaction {
-            val existing = videoDao.getByUriString(uri.toString())
-            if (existing != null) {
+            val existing = videoDao.getByUriString(normalized.uriString)
+            val video = if (existing != null) {
                 if (!existing.isAccessible) videoDao.markAvailable(existing.id)
                 existing.copy(isAccessible = true).toModel()
             } else {
-                val id = videoDao.upsert(imported)
-                (videoDao.getById(id) ?: imported.copy(id = id)).toModel()
+                val id = videoDao.upsert(normalized)
+                (videoDao.getById(id) ?: normalized.copy(id = id)).toModel()
             }
+            video.copy(accessUriString = accessUri.toString().takeIf { it != video.uriString })
         }
     }
 
     override suspend fun getVideo(videoId: Long): VideoFile? = withContext(Dispatchers.IO) {
-        videoDao.getById(videoId)?.takeIf { it.isAccessible }?.toModel()
+        videoDao.getById(videoId)?.takeIf { it.isAccessible }?.toModel()?.let { video ->
+            video.copy(accessUriString = scanner.persistedVideoDocuments()[video.uriString]?.toString())
+        }
     }
 
     override suspend fun toggleFavorite(videoId: Long) = withContext(Dispatchers.IO) {
