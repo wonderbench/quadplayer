@@ -10,6 +10,8 @@ v1.0 提供调试版 APK，适用于 Android 8.0（API 26）及以上设备。�
 
 ## 构建发布版本
 
+默认从 Google、Maven Central 和 Gradle 插件仓库下载依赖；如需优先使用国内镜像，可在构建命令中加 `-PuseChinaMirrors=true`。Gradle Wrapper 使用带 SHA-256 校验的 8.14 精简发行包。
+
 `assembleRelease` 启用代码和资源压缩。要生成正式签名包，请在安全环境中提供四个环境变量：`QP_RELEASE_STORE_FILE`（密钥库路径）、`QP_RELEASE_STORE_PASSWORD`、`QP_RELEASE_KEY_ALIAS`、`QP_RELEASE_KEY_PASSWORD`。不要把密钥或密码提交到仓库；务必备份并持续使用同一正式密钥。未配置时构建产物为未签名包，不能直接发布。`QP_VERSION_CODE` 可指定正整数版本号，`QP_VERSION_NAME` 可指定显示版本；每次正式发布应确保版本号递增。已安装的 v1.0 调试包与正式签名包之间不能直接覆盖安装，需事先考虑用户数据迁移。
 
 ## 主要功能
