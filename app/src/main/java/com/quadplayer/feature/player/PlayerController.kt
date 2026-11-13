@@ -71,6 +71,8 @@ data class PlayerUiState(
     val playWhenReady: Boolean = false,
     val videoSize: VideoSize = VideoSize.UNKNOWN,
     val repeatOne: Boolean = false,
+    val loopStartMs: Long? = null,
+    val loopEndMs: Long? = null,
 )
 
 @OptIn(UnstableApi::class)
@@ -87,6 +89,11 @@ class PlayerController(
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
+            val start = _uiState.value.loopStartMs
+            if (playbackState == Player.STATE_ENDED && playerInternal.playWhenReady && start != null && _uiState.value.loopEndMs != null) {
+                playerInternal.seekTo(start)
+                return
+            }
             updateStateFromPlayer()
         }
 
@@ -147,6 +154,15 @@ class PlayerController(
                         delay(300)
                     }
             }
+        }
+        scope.launch {
+            uiState.map { Triple(it.loopStartMs, it.loopEndMs, it.isPlaying) }.distinctUntilChanged()
+                .collectLatest { (start, end, playing) ->
+                    if (start != null && end != null && playing) while (true) {
+                        if (player.currentPosition >= end) player.seekTo(start)
+                        delay(40)
+                    }
+                }
         }
     }
 
@@ -259,6 +275,26 @@ class PlayerController(
     fun setPlaybackSpeed(speed: PlaybackSpeed) {
         player.setPlaybackSpeed(speed.value)
         _uiState.value = _uiState.value.copy(playbackSpeed = speed)
+    }
+
+    fun setLoopStart(): Boolean {
+        if (!player.isCurrentMediaItemSeekable) return false
+        _uiState.value = _uiState.value.copy(loopStartMs = player.currentPosition.coerceAtLeast(0L), loopEndMs = null)
+        return true
+    }
+
+    fun setLoopEnd(): Boolean {
+        val start = _uiState.value.loopStartMs ?: return false
+        val end = player.currentPosition
+        if (!player.isCurrentMediaItemSeekable || end - start < 250L) return false
+        player.repeatMode = Player.REPEAT_MODE_OFF
+        _uiState.value = _uiState.value.copy(loopEndMs = end)
+        player.seekTo(start)
+        return true
+    }
+
+    fun clearLoop() {
+        _uiState.value = _uiState.value.copy(loopStartMs = null, loopEndMs = null)
     }
 
     fun cycleAspectMode() {

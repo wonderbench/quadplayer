@@ -54,6 +54,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.quadplayer.core.util.formatDuration
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -262,6 +263,9 @@ fun QuadPlayerScreen(
             onEnlarge = { viewModel.focusSlot(slotIndex, single = true); menuSlot = null },
             onTogglePlayback = { viewModel.toggleSlot(slotIndex); menuSlot = null },
             onToggleRepeat = { viewModel.setSlotRepeat(slotIndex, !slot.repeatOne); menuSlot = null },
+            onSetLoopStart = { viewModel.setLoopStart(slotIndex) },
+            onSetLoopEnd = { viewModel.setLoopEnd(slotIndex) },
+            onClearLoop = { viewModel.clearLoop(slotIndex); menuSlot = null },
             onSetSpeed = { speed -> viewModel.setSlotSpeed(slotIndex, speed); menuSlot = null },
             onSwitchAudio = { viewModel.toggleAudioSource(slotIndex); menuSlot = null },
             onReplace = {
@@ -638,9 +642,13 @@ private fun SlotMenuDialog(
     onEnlarge: () -> Unit,
     onTogglePlayback: () -> Unit,
     onToggleRepeat: () -> Unit,
+    onSetLoopStart: () -> Boolean,
+    onSetLoopEnd: () -> Boolean,
+    onClearLoop: () -> Unit,
     onSetSpeed: (PlaybackSpeed) -> Unit,
     onSwitchAudio: () -> Unit,
 ) {
+    var loopError by remember(slot.index) { mutableStateOf(false) }
     val swapLabel = when (pendingSwapSource) {
         null -> stringResource(R.string.quad_start_swap)
         slot.index -> stringResource(R.string.quad_cancel_swap)
@@ -668,6 +676,20 @@ private fun SlotMenuDialog(
                 item {
                     DepthChoiceChip(selected = slot.repeatOne, onClick = onToggleRepeat, label = { Text(stringResource(R.string.quad_repeat_video)) })
                 }
+                item {
+                    val start = slot.loopStartMs
+                    val end = slot.loopEndMs
+                    val positionText: (Long) -> String = { "${formatDuration(it)}.${(it % 1000) / 100}" }
+                    Text(stringResource(R.string.quad_loop_range, start?.let(positionText) ?: "—", end?.let(positionText) ?: "—"))
+                }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { loopError = !onSetLoopStart(); if (!loopError) onDismiss() }) { Text(stringResource(R.string.quad_loop_set_a)) }
+                        TextButton(enabled = slot.loopStartMs != null, onClick = { loopError = !onSetLoopEnd(); if (!loopError) onDismiss() }) { Text(stringResource(R.string.quad_loop_set_b)) }
+                        TextButton(enabled = slot.loopStartMs != null, onClick = onClearLoop) { Text(stringResource(R.string.quad_loop_clear)) }
+                    }
+                }
+                if (loopError) item { Text(stringResource(R.string.quad_loop_invalid), color = MaterialTheme.colorScheme.error) }
                 item {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         PlaybackSpeed.entries.forEach { speed ->

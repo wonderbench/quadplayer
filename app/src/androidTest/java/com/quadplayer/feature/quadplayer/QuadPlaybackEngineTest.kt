@@ -25,6 +25,46 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class QuadPlaybackEngineTest {
+    @Test fun abLoopRejectsInvalidRangeFollowsSwapAndStopsWhenRepeatEnabled() = runBlocking(Dispatchers.Main) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = File(context.cacheDir, "quad-ab-loop.wav")
+        val samples = ByteArray(16000 * 2 * 2)
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray()).putInt(36 + samples.size).put("WAVEfmt ".toByteArray())
+            .putInt(16).putShort(1).putShort(1).putInt(16000).putInt(32000)
+            .putShort(2).putShort(16).put("data".toByteArray()).putInt(samples.size)
+        file.writeBytes(header.array() + samples)
+        fun video(id: Long) = VideoFile(id, Uri.fromFile(file).toString(), "test$id", "test", "test", 2000, file.length(), 0, 0, "audio/wav", 0, false, true)
+        val engine = QuadPlaybackEngine(context)
+        try {
+            engine.load(0, video(1)); engine.load(1, video(2))
+            engine.setSlotPlaying(0, false); engine.setSlotPlaying(1, false)
+            val player = engine.controllerAt(0)!!.player
+            withTimeout(10000) { while (!player.isCurrentMediaItemSeekable) delay(50) }
+            engine.seekSlot(0, 500); assertTrue(engine.setLoopStart(0))
+            engine.seekSlot(0, 600); assertFalse(engine.setLoopEnd(0))
+            engine.seekSlot(0, 1200); assertTrue(engine.setLoopEnd(0))
+            assertEquals(500L, player.currentPosition)
+            engine.swap(0, 1)
+            assertEquals(500L, engine.slotStates(flowOf(-1)).first()[1].loopStartMs)
+            val looped = CompletableDeferred<Unit>()
+            player.addListener(object : Player.Listener {
+                override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                    if (reason == Player.DISCONTINUITY_REASON_SEEK && oldPosition.positionMs >= 1200L && newPosition.positionMs == 500L) looped.complete(Unit)
+                }
+            })
+            engine.setSlotPlaying(1, true)
+            withTimeout(10000) { looped.await() }
+            engine.setSlotPlaying(1, false)
+            assertFalse(player.playWhenReady)
+            engine.setSlotRepeat(1, true)
+            val slot = engine.slotStates(flowOf(-1)).first()[1]
+            assertEquals(null, slot.loopStartMs)
+            assertEquals(null, slot.loopEndMs)
+            assertTrue(slot.repeatOne)
+        } finally { engine.release(); file.delete() }
+    }
+
     @Test fun repeatIsPerVideoFollowsSwapAndReallyLoops() = runBlocking(Dispatchers.Main) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val file = File(context.cacheDir, "quad-repeat.wav")

@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="quad_repeat_video">循环播放此视频</string>
+    <string name="quad_loop_range">区间循环 A：%1$s　B：%2$s</string>
+    <string name="quad_loop_set_a">设为 A</string>
+    <string name="quad_loop_set_b">设为 B</string>
+    <string name="quad_loop_clear">清除</string>
+    <string name="quad_loop_invalid">请等待视频可定位，并确保 B 比 A 晚至少 0.25 秒。</string>
     <string name="app_name">QuadPlayer</string>
 
     <string name="nav_home">首页</string>
