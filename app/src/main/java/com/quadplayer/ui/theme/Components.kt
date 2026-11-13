@@ -11,6 +11,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
@@ -131,6 +133,25 @@ fun DepthChip(onClick: () -> Unit, label: @Composable () -> Unit, modifier: Modi
             labelColor = MaterialTheme.colorScheme.onSurface,
             disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
             disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        ),
+    )
+}
+
+@Composable
+fun DepthChoiceChip(selected: Boolean, onClick: () -> Unit, label: @Composable () -> Unit) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = label,
+        modifier = Modifier.shadow(2.dp, RoundedCornerShape(12.dp), clip = false,
+            ambientColor = Color.Black.copy(alpha = 0.08f), spotColor = Color.Black.copy(alpha = 0.1f)),
+        shape = RoundedCornerShape(12.dp),
+        border = null,
+        colors = FilterChipDefaults.filterChipColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            labelColor = MaterialTheme.colorScheme.onSurface,
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
         ),
     )
 }

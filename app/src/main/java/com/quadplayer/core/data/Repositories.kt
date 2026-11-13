@@ -42,6 +42,8 @@ interface HistoryRepository {
     fun observeRecent(limit: Int = 100): Flow<List<RecentPlayback>>
     suspend fun getResumePosition(videoId: Long): Long
     suspend fun recordPlayback(videoId: Long, positionMs: Long)
+    suspend fun deleteHistory(videoId: Long)
+    suspend fun clearHistory()
 }
 
 interface PlaylistRepository {
@@ -99,12 +101,17 @@ class DefaultVideoRepository @Inject constructor(
     }
 
     override suspend fun importVideo(uri: Uri): VideoFile? = withContext(Dispatchers.IO) {
-        val existing = videoDao.getByUriString(uri.toString())
-        if (existing != null) return@withContext existing.toModel()
-
         val imported = scanner.inspectImportedVideo(uri) ?: return@withContext null
-        val id = videoDao.upsert(imported)
-        (videoDao.getById(id) ?: imported.copy(id = id)).toModel()
+        database.withTransaction {
+            val existing = videoDao.getByUriString(uri.toString())
+            if (existing != null) {
+                if (!existing.isAccessible) videoDao.markAvailable(existing.id)
+                existing.copy(isAccessible = true).toModel()
+            } else {
+                val id = videoDao.upsert(imported)
+                (videoDao.getById(id) ?: imported.copy(id = id)).toModel()
+            }
+        }
     }
 
     override suspend fun getVideo(videoId: Long): VideoFile? = withContext(Dispatchers.IO) {
@@ -129,11 +136,12 @@ class DefaultHistoryRepository @Inject constructor(
         playHistoryDao.getByVideoId(videoId)?.lastPositionMs ?: 0L
     }
 
+    override suspend fun deleteHistory(videoId: Long) = withContext(Dispatchers.IO) { playHistoryDao.deleteByVideoId(videoId) }
+    override suspend fun clearHistory() = withContext(Dispatchers.IO) { playHistoryDao.clear() }
+
     override suspend fun recordPlayback(videoId: Long, positionMs: Long) = withContext(Dispatchers.IO) {
-        val existing = playHistoryDao.getByVideoId(videoId)
         playHistoryDao.upsert(
             PlayHistoryEntity(
-                id = existing?.id ?: 0,
                 videoId = videoId,
                 lastPositionMs = positionMs,
                 lastPlayedAt = System.currentTimeMillis(),

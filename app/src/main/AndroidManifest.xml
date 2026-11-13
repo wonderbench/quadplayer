@@ -23,12 +23,20 @@
             android:name=".MainActivity"
             android:supportsPictureInPicture="true"
             android:resizeableActivity="true"
+            android:launchMode="singleTop"
             android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="content" android:mimeType="video/*" />
+                <data android:scheme="file" android:mimeType="video/*" />
             </intent-filter>
         </activity>
         <service

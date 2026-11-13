@@ -18,7 +18,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.ExperimentalMaterial3Api
 import com.quadplayer.ui.theme.TrackDivider
 import androidx.compose.material3.Icon
-import com.quadplayer.ui.theme.DepthChip
+import com.quadplayer.ui.theme.DepthChoiceChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
@@ -32,6 +32,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -96,12 +99,27 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 listOf(5, 10, 15, 30).forEach { seconds ->
-                    DepthChip(
+                    DepthChoiceChip(
+                        selected = seconds == settings.doubleTapSeekSeconds,
                         onClick = { viewModel.setDoubleTapSeconds(seconds) },
                         label = { Text(stringResource(R.string.settings_seek_seconds, seconds)) },
                     )
                 }
             }
+        }
+        SettingSection(
+            title = stringResource(R.string.settings_subtitles),
+            description = stringResource(R.string.settings_subtitles_desc),
+        ) {
+            Text(stringResource(R.string.settings_subtitle_size), style = MaterialTheme.typography.labelLarge)
+            ChipRow(values = listOf(0.8f, 1f, 1.25f, 1.5f), selected = settings.subtitleStyle.fontScale,
+                label = { "${(it * 100).toInt()}%" }, onClick = viewModel::setSubtitleScale)
+            Text(stringResource(R.string.settings_subtitle_color), style = MaterialTheme.typography.labelLarge)
+            ChipRow(values = listOf(-1L, 0xFFFFFF00.toInt().toLong()), selected = settings.subtitleStyle.foregroundColor,
+                label = { stringResource(if (it == -1L) R.string.settings_subtitle_white else R.string.settings_subtitle_yellow) }, onClick = viewModel::setSubtitleForeground)
+            Text(stringResource(R.string.settings_subtitle_background), style = MaterialTheme.typography.labelLarge)
+            ChipRow(values = listOf(0L, 0x73000000L, 0xFF000000.toInt().toLong()), selected = settings.subtitleStyle.backgroundColor,
+                label = { stringResource(when (it) { 0L -> R.string.settings_subtitle_transparent; 0x73000000L -> R.string.settings_subtitle_translucent; else -> R.string.settings_subtitle_black }) }, onClick = viewModel::setSubtitleBackground)
         }
         SwitchRow(
             label = stringResource(R.string.settings_reverse_double_tap_seek),
@@ -115,6 +133,14 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             checked = settings.backgroundPlayback,
             onCheckedChange = viewModel::setBackgroundPlayback,
         )
+        if (Build.VERSION.SDK_INT >= 31 && LocalContext.current.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
+            SwitchRow(
+                label = stringResource(R.string.settings_auto_pip),
+                description = stringResource(R.string.settings_auto_pip_desc),
+                checked = settings.autoPictureInPicture,
+                onCheckedChange = viewModel::setAutoPictureInPicture,
+            )
+        }
         SwitchRow(
             label = stringResource(R.string.settings_auto_resume),
             description = stringResource(R.string.settings_auto_resume_desc),
@@ -469,11 +495,11 @@ private fun <T> ChipRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         values.forEach { value ->
-            DepthChip(
+            DepthChoiceChip(
+                selected = value == selected,
                 onClick = { onClick(value) },
                 label = {
-                    val text = label(value)
-                    Text(if (value == selected) "✓ $text" else text)
+                    Text(label(value))
                 },
             )
         }

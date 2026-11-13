@@ -42,6 +42,7 @@ data class QuadPlayerUiState(
     val pendingSwapSource: Int? = null,
     val offerRecovery: Boolean = false,
     val recoveryAvailable: Boolean = false,
+    val linkedSeek: Boolean = false,
 )
 
 @HiltViewModel
@@ -58,8 +59,17 @@ class QuadPlayerViewModel @Inject constructor(
     private val audioSourceManager = AudioSourceManager(viewModelScope)
     private val layoutManager = QuadLayoutManager()
     private val warningMessage = MutableStateFlow<String?>(null)
+    private val capabilityWarning = MutableStateFlow<String?>(null)
     private val performanceWarnings = MutableStateFlow<List<PerformanceWarning>>(emptyList())
+    private val queuedNotices = combine(capabilityWarning, performanceWarnings) { capability, performance ->
+        capability ?: when (performance.firstOrNull()) {
+            PerformanceWarning.LowMemory -> context.getString(R.string.quad_warning_low_memory)
+            PerformanceWarning.ThermalThrottle -> context.getString(R.string.quad_warning_thermal)
+            null -> null
+        }
+    }
     private val pendingSwapSource = MutableStateFlow<Int?>(null)
+    private val linkedSeek = MutableStateFlow(false)
     private val recoveryPrompt = MutableStateFlow(RecoveryPrompt())
     private var sessionReady = false
     private var restoring = false
@@ -71,28 +81,26 @@ class QuadPlayerViewModel @Inject constructor(
         engine.slotStates(audioSourceManager.currentAudioSource),
         layoutManager.state,
         settingsRepository.settings,
-    ) { slots, layout, settings ->
+        linkedSeek,
+    ) { slots, layout, settings, linked ->
         QuadPlayerUiState(
             slots = slots,
             layoutMode = layout.mode,
             focusedSlot = layout.focusedSlot,
             settings = settings,
+            linkedSeek = linked,
         )
     }
 
     val uiState: StateFlow<QuadPlayerUiState> = combine(
         baseUiState,
         warningMessage,
-        performanceWarnings,
+        queuedNotices,
         pendingSwapSource,
         recoveryPrompt,
-    ) { baseState, warning, queuedWarnings, pendingSwap, recovery ->
+    ) { baseState, warning, queuedNotice, pendingSwap, recovery ->
         baseState.copy(
-            warningMessage = warning ?: when (queuedWarnings.firstOrNull()) {
-                PerformanceWarning.LowMemory -> context.getString(R.string.quad_warning_low_memory)
-                PerformanceWarning.ThermalThrottle -> context.getString(R.string.quad_warning_thermal)
-                null -> null
-            },
+            warningMessage = warning ?: queuedNotice,
             pendingSwapSource = pendingSwap,
             offerRecovery = recovery.session != null && recovery.visible,
             recoveryAvailable = recovery.session != null && !recovery.visible && !recovery.busy,
@@ -106,13 +114,22 @@ class QuadPlayerViewModel @Inject constructor(
             }
         }
 
-        val capability = capabilityChecker.check()
-        if (capability.warning != null) {
-            warningMessage.value = context.getString(
-                R.string.quad_warning_capability,
-                capability.totalRamMb,
-                capability.maxConcurrentDecoders,
-            )
+        viewModelScope.launch {
+            val capability = try {
+                withContext(Dispatchers.IO) { capabilityChecker.check() }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                android.util.Log.w("QuadPlayerViewModel", "Device capability check failed", failure)
+                null
+            }
+            if (capability?.warning != null) {
+                capabilityWarning.value = context.getString(
+                    R.string.quad_warning_capability,
+                    capability.totalRamMb,
+                    capability.maxConcurrentDecoders,
+                )
+            }
         }
 
         performanceMonitor.start(context, viewModelScope)
@@ -267,8 +284,15 @@ class QuadPlayerViewModel @Inject constructor(
     }
 
     fun seekSlot(slotIndex: Int, positionMs: Long) {
-        engine.seekSlot(slotIndex, positionMs)
+        if (!linkedSeek.value) engine.seekSlot(slotIndex, positionMs)
+        else when (engine.seekLinked(slotIndex, positionMs)) {
+            null -> warningMessage.value = context.getString(R.string.quad_linked_seek_not_ready)
+            true -> warningMessage.value = context.getString(R.string.quad_linked_seek_limited)
+            false -> Unit
+        }
     }
+
+    fun toggleLinkedSeek() { linkedSeek.value = !linkedSeek.value }
 
     fun setGlobalSpeed(speed: PlaybackSpeed) {
         engine.setGlobalSpeed(speed)
@@ -366,6 +390,7 @@ class QuadPlayerViewModel @Inject constructor(
 
     fun clearWarning() {
         if (warningMessage.value != null) warningMessage.value = null
+        else if (capabilityWarning.value != null) capabilityWarning.value = null
         else performanceWarnings.value = performanceWarnings.value.drop(1)
     }
 

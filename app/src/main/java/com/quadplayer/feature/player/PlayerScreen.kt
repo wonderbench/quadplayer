@@ -1,7 +1,6 @@
 package com.quadplayer.feature.player
 
 import android.app.Activity
-import android.app.PictureInPictureParams
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
@@ -36,11 +35,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.ScreenRotationAlt
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.AlertDialog
 import com.quadplayer.ui.theme.DepthChip
+import com.quadplayer.core.ui.applySubtitleStyle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import com.quadplayer.ui.theme.RoundIconButton
@@ -108,7 +112,15 @@ fun PlayerScreen(
     var isSeeking by remember { mutableStateOf(false) }
     var seekPosition by remember { mutableFloatStateOf(0f) }
     var showMore by remember { mutableStateOf(false) }
+    var showSpeed by remember { mutableStateOf(false) }
     var inPip by remember { mutableStateOf(activity?.isInPictureInPictureMode == true) }
+    var pickerOpen by remember { mutableStateOf(false) }
+    val pipSupported = context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+    val displaySize = state.playerState.videoSize
+    val hasDisplaySize = displaySize.width > 0 && displaySize.height > 0
+    val videoWidth = if (hasDisplaySize) displaySize.width else state.video?.width ?: 0
+    val videoHeight = if (hasDisplaySize) displaySize.height else state.video?.height ?: 0
+    val pixelRatio = if (hasDisplaySize) displaySize.pixelWidthHeightRatio else 1f
     var speedBeforeHold by remember { mutableStateOf<PlaybackSpeed?>(null) }
     fun endSpeedHold() {
         speedBeforeHold?.let(viewModel::setSpeed)
@@ -120,6 +132,23 @@ fun PlayerScreen(
         val listener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { inPip = it.isInPictureInPictureMode }
         component?.addOnPictureInPictureModeChangedListener(listener)
         onDispose { component?.removeOnPictureInPictureModeChangedListener(listener) }
+    }
+    DisposableEffect(activity, pipSupported, videoWidth, videoHeight, pixelRatio, state.settings.autoPictureInPicture, state.playerState.isPlaying, inPip, pickerOpen) {
+        if (activity != null && pipSupported) {
+            runCatching {
+                activity.setPictureInPictureParams(pipParams(videoWidth, videoHeight,
+                    state.settings.autoPictureInPicture && state.playerState.isPlaying && !inPip && !pickerOpen, pixelRatio))
+            }
+        }
+        onDispose {
+            if (activity != null && pipSupported && android.os.Build.VERSION.SDK_INT >= 31) {
+                runCatching { activity.setPictureInPictureParams(pipParams(videoWidth, videoHeight, false, pixelRatio)) }
+            }
+        }
+    }
+    fun suppressAutoPipForPicker() {
+        pickerOpen = true
+        if (activity != null && pipSupported) runCatching { activity.setPictureInPictureParams(pipParams(videoWidth, videoHeight, false, pixelRatio)) }
     }
     var floatingActionsOnLeft by rememberSaveable { mutableStateOf(false) }
 
@@ -133,6 +162,7 @@ fun PlayerScreen(
     }
 
     val subtitlePicker = rememberLauncherForActivityResult(OpenDocument()) { uri ->
+        pickerOpen = false
         uri?.let {
             runCatching {
                 context.contentResolver.takePersistableUriPermission(it, FLAG_GRANT_READ_URI_PERMISSION)
@@ -141,6 +171,7 @@ fun PlayerScreen(
         }
     }
     val audioPicker = rememberLauncherForActivityResult(OpenDocument()) { uri ->
+        pickerOpen = false
         uri?.let {
             runCatching {
                 context.contentResolver.takePersistableUriPermission(it, FLAG_GRANT_READ_URI_PERMISSION)
@@ -183,15 +214,15 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(state.controlsVisible, state.playerState.isPlaying, state.video?.id, isSeeking, showMore, showAudioDialog, showSubtitleDialog) {
-        if (state.controlsVisible && state.playerState.isPlaying && !isSeeking && !showMore && !showAudioDialog && !showSubtitleDialog) {
+    LaunchedEffect(state.controlsVisible, state.playerState.isPlaying, state.video?.id, isSeeking, showMore, showSpeed, showAudioDialog, showSubtitleDialog) {
+        if (state.controlsVisible && state.playerState.isPlaying && !isSeeking && !showMore && !showSpeed && !showAudioDialog && !showSubtitleDialog) {
             delay(3000)
             viewModel.hideControls()
         }
     }
 
     LaunchedEffect(state.controlsVisible) {
-        if (!state.controlsVisible) showMore = false
+        if (!state.controlsVisible) { showMore = false; showSpeed = false }
     }
 
     val playerMessage = state.statusMessage ?: if (state.playerState.errorMessage != null) {
@@ -312,8 +343,9 @@ fun PlayerScreen(
                             RoundIconButton(onClick = viewModel::previous, enabled = state.queue.hasPrevious) {
                                 Icon(Icons.Rounded.SkipPrevious, contentDescription = stringResource(R.string.player_previous))
                             }
-                            TextButton(onClick = viewModel::togglePlayPause) {
-                                Text(stringResource(if (state.playerState.isPlaying) R.string.common_pause else R.string.common_play))
+                            RoundIconButton(onClick = viewModel::togglePlayPause) {
+                                Icon(if (state.playerState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                    contentDescription = stringResource(if (state.playerState.isPlaying) R.string.common_pause else R.string.common_play))
                             }
                             RoundIconButton(onClick = viewModel::next, enabled = state.queue.hasNext) {
                                 Icon(Icons.Rounded.SkipNext, contentDescription = stringResource(R.string.player_next))
@@ -328,24 +360,26 @@ fun PlayerScreen(
                             )
                             Text(formatDuration(state.playerState.durationMs))
                             Box {
-                                TextButton(onClick = { showMore = true }) { Text("⋮") }
+                                RoundIconButton(onClick = { showMore = true }) {
+                                    Icon(Icons.Rounded.MoreVert, contentDescription = stringResource(R.string.player_more))
+                                }
                                 DropdownMenu(expanded = showMore, onDismissRequest = { showMore = false }) {
                                     DropdownMenuItem(text = { Text(stringResource(R.string.player_audio)) }, onClick = { showMore = false; showAudioDialog = true })
                                     DropdownMenuItem(text = { Text(stringResource(R.string.player_subtitle)) }, onClick = { showMore = false; showSubtitleDialog = true })
                                     DropdownMenuItem(text = { Text(stringResource(if (state.queue.repeatOne) R.string.player_repeat_one_on else R.string.player_repeat_one_off)) }, onClick = { showMore = false; viewModel.toggleRepeatOne() })
                                     DropdownMenuItem(text = { Text(stringResource(R.string.player_aspect)) }, onClick = { showMore = false; viewModel.cycleAspectMode() })
                                     PlaybackSpeed.entries.forEach { speed ->
-                                        DropdownMenuItem(text = { Text(speed.label) }, onClick = { showMore = false; viewModel.setSpeed(speed) })
+                                        DropdownMenuItem(text = { Text(if (speed == state.playerState.playbackSpeed) "✓ ${speed.label}" else speed.label) }, onClick = { showMore = false; viewModel.setSpeed(speed) })
                                     }
                                     if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                                         DropdownMenuItem(text = { Text(stringResource(R.string.player_pip)) }, onClick = {
                                             showMore = false
-                                            runCatching { activity?.enterPictureInPictureMode(PictureInPictureParams.Builder().build()) }
+                                            runCatching { activity?.enterPictureInPictureMode(pipParams(videoWidth, videoHeight, false, pixelRatio)) }
                                         })
                                     }
                                 }
                             }
-                            TextButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
+                            RoundIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_back)) }
                         }
                     }
                 } else {
@@ -360,7 +394,7 @@ fun PlayerScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(onClick = onBack) { Text(stringResource(R.string.common_back)) }
+                        RoundIconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.common_back)) }
                         Text(
                             text = state.video?.displayName ?: stringResource(R.string.player_title),
                             modifier = Modifier.weight(1f),
@@ -403,14 +437,9 @@ fun PlayerScreen(
                         RoundIconButton(onClick = viewModel::previous, enabled = state.queue.hasPrevious) {
                             Icon(Icons.Rounded.SkipPrevious, contentDescription = stringResource(R.string.player_previous))
                         }
-                        TextButton(onClick = viewModel::togglePlayPause) {
-                            Text(
-                                if (state.playerState.isPlaying) {
-                                    stringResource(R.string.common_pause)
-                                } else {
-                                    stringResource(R.string.common_play)
-                                },
-                            )
+                        RoundIconButton(onClick = viewModel::togglePlayPause) {
+                            Icon(if (state.playerState.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                                contentDescription = stringResource(if (state.playerState.isPlaying) R.string.common_pause else R.string.common_play))
                         }
                         RoundIconButton(onClick = viewModel::next, enabled = state.queue.hasNext) {
                             Icon(Icons.Rounded.SkipNext, contentDescription = stringResource(R.string.player_next))
@@ -418,16 +447,22 @@ fun PlayerScreen(
                         TextButton(onClick = viewModel::toggleRepeatOne) {
                             Text(stringResource(if (state.queue.repeatOne) R.string.player_repeat_one_on else R.string.player_repeat_one_off))
                         }
-                        PlaybackSpeed.entries.forEach { speed ->
-                            DepthChip(
-                                onClick = { viewModel.setSpeed(speed) },
-                                label = { Text(speed.label) },
-                            )
+                        Box {
+                            val speedLabel = stringResource(R.string.player_current_speed, state.playerState.playbackSpeed.label)
+                            DepthChip(onClick = { showSpeed = true }, modifier = Modifier.semantics { contentDescription = speedLabel }, label = { Text(state.playerState.playbackSpeed.label) })
+                            DropdownMenu(expanded = showSpeed, onDismissRequest = { showSpeed = false }) {
+                                PlaybackSpeed.entries.forEach { speed ->
+                                    DropdownMenuItem(
+                                        text = { Text(if (speed == state.playerState.playbackSpeed) "✓ ${speed.label}" else speed.label) },
+                                        onClick = { showSpeed = false; viewModel.setSpeed(speed) },
+                                    )
+                                }
+                            }
                         }
                         if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) TextButton(
                             onClick = {
                                 runCatching { (context as? Activity)?.enterPictureInPictureMode(
-                                    PictureInPictureParams.Builder().build(),
+                                    pipParams(videoWidth, videoHeight, false, pixelRatio),
                                 ) }
                             },
                         ) {
@@ -452,7 +487,7 @@ fun PlayerScreen(
                 showAudioDialog = false
             },
             extraAction = {
-                TextButton(onClick = { audioPicker.launch(arrayOf("audio/*")) }) {
+                TextButton(onClick = { suppressAutoPipForPicker(); audioPicker.launch(arrayOf("audio/*")) }) {
                     Text(stringResource(R.string.player_choose_external_audio))
                 }
             },
@@ -471,7 +506,7 @@ fun PlayerScreen(
                 showSubtitleDialog = false
             },
             extraAction = {
-                TextButton(onClick = { subtitlePicker.launch(arrayOf("*/*")) }) {
+                TextButton(onClick = { suppressAutoPipForPicker(); subtitlePicker.launch(arrayOf("*/*")) }) {
                     Text(stringResource(R.string.player_choose_external_subtitle))
                 }
             },
@@ -597,6 +632,7 @@ private fun PlayerSurface(
                 playerView.player = viewModel.controller.player
                 playerView.keepScreenOn = state.playerState.isPlaying
                 playerView.resizeMode = resizeMode
+                playerView.applySubtitleStyle(state.settings.subtitleStyle)
                 playerView.setShutterBackgroundColor(android.graphics.Color.BLACK)
                 playerView.setBackgroundColor(android.graphics.Color.BLACK)
             },

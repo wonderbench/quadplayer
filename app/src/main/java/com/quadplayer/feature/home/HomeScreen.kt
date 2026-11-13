@@ -14,14 +14,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.AlertDialog
 import com.quadplayer.ui.theme.DepthChip
 import androidx.compose.material3.Button
@@ -30,6 +33,7 @@ import com.quadplayer.ui.theme.TrackDivider
 import androidx.compose.material3.Icon
 import com.quadplayer.ui.theme.RoundIconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import com.quadplayer.ui.theme.QuietTextField
@@ -48,6 +52,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -70,6 +75,8 @@ fun HomeScreen(
     onOpenPlaylist: (Long) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val historyError by viewModel.historyError.collectAsStateWithLifecycle()
+    val compactHeight = LocalConfiguration.current.screenHeightDp < 480
     val permission = rememberMediaAccess(viewModel::refresh)
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var playlistTarget by remember { mutableStateOf<VideoFile?>(null) }
@@ -109,7 +116,7 @@ fun HomeScreen(
             Image(
                 painter = painterResource(R.drawable.app_logo),
                 contentDescription = stringResource(R.string.app_name),
-                modifier = Modifier.size(56.dp),
+                modifier = Modifier.size(if (compactHeight) 40.dp else 56.dp),
                 contentScale = ContentScale.Fit,
             )
             Text(
@@ -125,20 +132,22 @@ fun HomeScreen(
         if (permission.partial) {
             TextButton(onClick = permission.request) { Text(stringResource(R.string.media_partial_access)) }
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.home_tab_library),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(12.dp))
+        if (!compactHeight) {
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = stringResource(R.string.home_tab_library),
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.height(if (compactHeight) 4.dp else 12.dp))
         QuietTextField(
             value = uiState.searchQuery,
             onValueChange = viewModel::updateSearchQuery,
             modifier = Modifier.fillMaxWidth(),
             label = { Text(stringResource(R.string.home_search_label)) },
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(if (compactHeight) 4.dp else 12.dp))
 
         val tabs = listOf(
             stringResource(R.string.home_tab_library),
@@ -162,7 +171,7 @@ fun HomeScreen(
                 )
             }
         }
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(if (compactHeight) 4.dp else 12.dp))
 
         when (selectedTab) {
             0 -> VideoList(
@@ -177,6 +186,8 @@ fun HomeScreen(
                 items = uiState.recent,
                 emptyText = stringResource(R.string.home_empty_recent),
                 onOpenVideo = onOpenVideo,
+                onDelete = viewModel::deleteHistory,
+                onClear = viewModel::clearHistory,
             )
 
             2 -> VideoList(
@@ -208,6 +219,13 @@ fun HomeScreen(
             onCreate = viewModel::createPlaylist,
         )
     }
+    if (historyError) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissHistoryError,
+            text = { Text(stringResource(R.string.history_change_failed)) },
+            confirmButton = { TextButton(onClick = viewModel::dismissHistoryError) { Text(stringResource(R.string.common_close)) } },
+        )
+    }
 }
 
 @Composable
@@ -223,8 +241,8 @@ private fun VideoList(
         return
     }
 
-    LazyColumn(contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(videos, key = { it.id }) { video ->
+    LazyVerticalGrid(columns = GridCells.Adaptive(320.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        gridItems(videos, key = { it.id }) { video ->
             DepthCard(onClick = { onOpenVideo(video.id) }) {
                 Column(
                     modifier = Modifier
@@ -268,18 +286,24 @@ private fun VideoList(
 }
 
 @Composable
-private fun RecentList(
+internal fun RecentList(
     items: List<RecentPlayback>,
     emptyText: String,
     onOpenVideo: (Long) -> Unit,
+    onDelete: (Long) -> Unit,
+    onClear: () -> Unit,
 ) {
-    if (items.isEmpty()) {
-        EmptyStateText(emptyText)
-        return
-    }
-
-    LazyColumn(contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(items, key = { it.video.id }) { item ->
+    var confirmingClear by remember { mutableStateOf(false) }
+    LazyVerticalGrid(columns = GridCells.Adaptive(320.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        item(span = { GridItemSpan(maxLineSpan) }) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { confirmingClear = true }) { Text(stringResource(R.string.history_clear)) }
+            }
+        }
+        if (items.isEmpty()) {
+            item(span = { GridItemSpan(maxLineSpan) }) { EmptyStateText(emptyText) }
+        }
+        gridItems(items, key = { it.video.id }) { item ->
             DepthCard(onClick = { onOpenVideo(item.video.id) }) {
                 Row(
                     modifier = Modifier
@@ -296,10 +320,28 @@ private fun RecentList(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    if (item.video.durationMs > 0) {
+                        LinearProgressIndicator(
+                            progress = { (item.lastPositionMs.toFloat() / item.video.durationMs).coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    }
+                    RoundIconButton(onClick = { onDelete(item.video.id) }) {
+                        Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.history_remove))
                     }
                 }
             }
         }
+    }
+    if (confirmingClear) {
+        AlertDialog(
+            onDismissRequest = { confirmingClear = false },
+            title = { Text(stringResource(R.string.history_clear)) },
+            text = { Text(stringResource(R.string.history_clear_confirmation)) },
+            confirmButton = { TextButton(onClick = { onClear(); confirmingClear = false }) { Text(stringResource(R.string.history_clear)) } },
+            dismissButton = { TextButton(onClick = { confirmingClear = false }) { Text(stringResource(R.string.common_cancel)) } },
+        )
     }
 }
 
@@ -320,8 +362,8 @@ private fun PlaylistList(
         if (playlists.isEmpty()) {
             EmptyStateText(emptyText)
         } else {
-            LazyColumn(contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(playlists, key = { it.id }) { playlist ->
+            LazyVerticalGrid(columns = GridCells.Adaptive(320.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                gridItems(playlists, key = { it.id }) { playlist ->
                     DepthCard(onClick = { onOpenPlaylist(playlist.id) }) {
                         Column(
                             modifier = Modifier

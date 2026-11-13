@@ -1,8 +1,6 @@
 package com.quadplayer.core.model
 
 import android.net.Uri
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.toArgb
 
 enum class PlaybackState {
     IDLE,
@@ -60,8 +58,8 @@ enum class PlaybackSpeed(val value: Float, val label: String) {
 
 data class SubtitleStyle(
     val fontScale: Float = 1f,
-    val foregroundColor: Long = Color.White.toArgb().toLong(),
-    val backgroundColor: Long = Color.Black.copy(alpha = 0.45f).toArgb().toLong(),
+    val foregroundColor: Long = -1L,
+    val backgroundColor: Long = 0x73000000L,
 )
 
 enum class CapabilityWarning {
@@ -128,4 +126,5 @@ data class AppSettings(
     val crossfadeAudioSwitching: Boolean = true,
     val themeMode: AppThemeMode = AppThemeMode.SYSTEM,
     val subtitleStyle: SubtitleStyle = SubtitleStyle(),
+    val autoPictureInPicture: Boolean = false,
 )

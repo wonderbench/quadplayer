@@ -1,8 +1,10 @@
 pluginManagement {
     repositories {
-        maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
-        maven("https://maven.aliyun.com/repository/google")
-        maven("https://maven.aliyun.com/repository/central")
+        if (providers.gradleProperty("useChinaMirrors").orNull == "true") {
+            maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
+            maven("https://maven.aliyun.com/repository/google")
+            maven("https://maven.aliyun.com/repository/central")
+        }
         google()
         mavenCentral()
         gradlePluginPortal()
@@ -12,9 +14,11 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
-        maven("https://maven.aliyun.com/repository/google")
-        maven("https://maven.aliyun.com/repository/central")
+        if (providers.gradleProperty("useChinaMirrors").orNull == "true") {
+            maven("https://mirrors.cloud.tencent.com/nexus/repository/maven-public/")
+            maven("https://maven.aliyun.com/repository/google")
+            maven("https://maven.aliyun.com/repository/central")
+        }
         google()
         mavenCentral()
     }

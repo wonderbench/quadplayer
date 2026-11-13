@@ -25,6 +25,37 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class QuadPlaybackEngineTest {
+    @Test fun linkedSeekMovesRealPlayersWithoutChangingPauseState() = runBlocking(Dispatchers.Main) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = File(context.cacheDir, "quad-linked-seek.wav")
+        val samples = ByteArray(16000 * 2 * 5)
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray()).putInt(36 + samples.size).put("WAVEfmt ".toByteArray())
+            .putInt(16).putShort(1).putShort(1).putInt(16000).putInt(32000)
+            .putShort(2).putShort(16).put("data".toByteArray()).putInt(samples.size)
+        file.writeBytes(header.array() + samples)
+        fun video(id: Long) = VideoFile(id, Uri.fromFile(file).toString(), "test$id", "test", "test", 5000, file.length(), 0, 0, "audio/wav", 0, false, true)
+        val engine = QuadPlaybackEngine(context)
+        try {
+            engine.load(0, video(1)); engine.load(1, video(2))
+            engine.controllerAt(0)!!.pause(); engine.controllerAt(1)!!.pause()
+            withTimeout(10000) {
+                while (!engine.controllerAt(0)!!.player.isCurrentMediaItemSeekable || !engine.controllerAt(1)!!.player.isCurrentMediaItemSeekable) delay(50)
+            }
+            engine.seekSlot(0, 1000); engine.seekSlot(1, 2000)
+            assertEquals(false, engine.seekLinked(0, 2500))
+            assertEquals(2500L, engine.currentPosition(0))
+            assertEquals(3500L, engine.currentPosition(1))
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+            assertFalse(engine.controllerAt(1)!!.player.playWhenReady)
+            val secondDuration = engine.controllerAt(1)!!.player.duration
+            assertEquals(true, engine.seekLinked(0, 5000))
+            assertEquals(secondDuration - 1000L, engine.currentPosition(0))
+            // ExoPlayer can clamp a seek at the exact end to the final sample.
+            assertTrue(kotlin.math.abs(secondDuration - engine.currentPosition(1)!!) <= 1L)
+        } finally { engine.release(); file.delete() }
+    }
+
     @Test fun removingOrReplacingWhileLoadSuspendsNeverRestoresStaleSlot() = runBlocking(Dispatchers.Main) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val file = File(context.cacheDir, "quad-stale-load.wav").apply { writeBytes(ByteArray(44)) }

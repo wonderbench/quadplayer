@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items as gridItems
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -21,6 +24,7 @@ import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.AlertDialog
 import com.quadplayer.ui.theme.DepthChip
+import com.quadplayer.ui.theme.DepthChoiceChip
 import androidx.compose.material3.Button
 import com.quadplayer.ui.theme.TrackDivider
 import com.quadplayer.ui.theme.DepthCard
@@ -40,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -62,6 +67,7 @@ fun FileBrowserScreen(
     onOpenPlaylist: (Long) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val compactHeight = LocalConfiguration.current.screenHeightDp < 480
     val permission = rememberMediaAccess(viewModel::refresh)
     var playlistTarget by remember { mutableStateOf<VideoFile?>(null) }
     var showFolderPicker by remember { mutableStateOf(false) }
@@ -82,8 +88,8 @@ fun FileBrowserScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 16.dp, vertical = if (compactHeight) 4.dp else 12.dp),
+        verticalArrangement = Arrangement.spacedBy(if (compactHeight) 4.dp else 12.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -95,6 +101,11 @@ fun FileBrowserScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
+            if (compactHeight) {
+                Text(stringResource(R.string.folders_current_view_summary, uiState.videos.size,
+                    formatDuration(uiState.totalDurationMs), formatFileSize(uiState.totalSizeBytes)),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             RoundIconButton(onClick = viewModel::refresh) {
                 Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.common_refresh))
             }
@@ -128,7 +139,7 @@ fun FileBrowserScreen(
             singleLine = true,
         )
 
-        uiState.selectedFolder?.let { folder ->
+        if (!compactHeight) uiState.selectedFolder?.let { folder ->
             Text(
                 text = stringResource(R.string.folders_current_path, folder.path),
                 style = MaterialTheme.typography.bodySmall,
@@ -138,7 +149,7 @@ fun FileBrowserScreen(
             )
         }
 
-        Text(
+        if (!compactHeight) Text(
             text = stringResource(
                 R.string.folders_current_view_summary,
                 uiState.videos.size,
@@ -154,7 +165,8 @@ fun FileBrowserScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             FileBrowserSortMode.entries.forEach { mode ->
-                DepthChip(
+                DepthChoiceChip(
+                    selected = uiState.sortMode == mode,
                     onClick = { viewModel.setSortMode(mode) },
                     label = {
                         Text(
@@ -166,7 +178,6 @@ fun FileBrowserScreen(
                             },
                         )
                     },
-                    enabled = uiState.sortMode != mode,
                 )
             }
         }
@@ -179,12 +190,14 @@ fun FileBrowserScreen(
                 text = stringResource(R.string.folders_empty_videos),
             )
         } else {
-            LazyColumn(
+            LazyVerticalGrid(
+                columns = GridCells.Adaptive(320.dp),
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(uiState.videos, key = { it.id }) { video ->
+                gridItems(uiState.videos, key = { it.id }) { video ->
                     VideoRow(
                         video = video,
                         onOpenVideo = onOpenVideo,

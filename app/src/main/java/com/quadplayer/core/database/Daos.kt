@@ -59,6 +59,9 @@ interface VideoDao {
 
     @Query("UPDATE videos SET is_accessible = 0 WHERE id IN (:ids)")
     suspend fun markUnavailable(ids: List<Long>)
+
+    @Query("UPDATE videos SET is_accessible = 1 WHERE id = :videoId")
+    suspend fun markAvailable(videoId: Long)
 }
 
 @Dao
@@ -78,8 +81,14 @@ interface PlayHistoryDao {
     @Query("SELECT * FROM play_history WHERE video_id = :videoId LIMIT 1")
     suspend fun getByVideoId(videoId: Long): PlayHistoryEntity?
 
-    @Upsert
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(history: PlayHistoryEntity)
+
+    @Query("DELETE FROM play_history WHERE video_id = :videoId")
+    suspend fun deleteByVideoId(videoId: Long)
+
+    @Query("DELETE FROM play_history")
+    suspend fun clear()
 }
 
 @Dao
