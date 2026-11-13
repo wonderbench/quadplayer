@@ -42,6 +42,8 @@ Gradle 依赖校验清单记录构建、测试和发布所用组件的 SHA-256�
 
 进入底部导航的「四格」页面，点击空白格即可添加视频。更多操作说明见 [使用指南](About.md#使用指南)。
 
+应用内介绍与 `About.md` 的共享部分使用同一组字符串和分组。修改 `app/src/main/res/values/about_structure.xml` 或对应的中英文字符串后，运行 `:app:syncAboutDocs` 更新文档，并运行 `:app:verifyAboutDocs` 检查；技术架构和常见问题部分可单独维护。
+
 ## 性能测量
 
 仓库提供按需运行的设备测试 `PlaybackPerformanceTest`。默认测试会跳过它；运行前请准备一段比采样时间至少长 5 秒的本地视频，并在专用测试设备上安装 Debug 包和测试包。以下示例中的序列号和 URI 必须替换为实际设备与视频；安装会更新设备上同包名的 Debug 应用。

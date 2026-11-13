@@ -253,7 +253,7 @@
     <string name="about_detail_04">Double-tap a view or use its audio button to select its sound.</string>
     <string name="about_detail_05">Optional crossfade makes audio switches smoother.</string>
     <string name="about_detail_06">Play or pause all, synchronize positions and change speed together.</string>
-    <string name="about_detail_07">Seek, pause or replace each video independently.</string>
+    <string name="about_detail_07">Seek, pause, replace or repeat each video independently, including A–B loops. Loop boundaries are not frame-accurate.</string>
     <string name="about_detail_08">Touch and hold a view to open its menu and swap positions.</string>
     <string name="about_detail_09">Single-video playback</string>
     <string name="about_detail_10">Play, pause, seek and see buffering status.</string>
@@ -291,4 +291,8 @@
     <string name="about_detail_42">Features</string>
     <string name="about_detail_43">Requirements</string>
     <string name="about_detail_44">Guide</string>
+    <string name="about_detail_45">Save and restore named quad presets. Loop settings are not saved; unavailable sources must be selected again.</string>
+    <string name="about_detail_46">Use playback queues and system media controls, and remember audio and subtitle selections per video.</string>
+    <string name="about_detail_47">Hide manually imported entries and manage retained file access after reviewing the consequences; original files are not deleted.</string>
+    <string name="about_detail_48">Adjust subtitle size, color and background, and view third-party license notices.</string>
 </resources>

@@ -37,83 +37,37 @@ internal data class AboutVisualSection(
     val icon: ImageVector,
 )
 
+private fun featureGroup(context: Context, @androidx.annotation.ArrayRes id: Int): AboutBulletGroup {
+    val values = context.resources.getStringArray(id)
+    return AboutBulletGroup(values.first(), values.drop(1))
+}
+
+private fun guideGroup(context: Context, @androidx.annotation.ArrayRes id: Int): AboutNumberedGroup {
+    val values = context.resources.getStringArray(id)
+    return AboutNumberedGroup(values.first(), values.drop(1))
+}
+
+private fun groupIds(context: Context, @androidx.annotation.ArrayRes id: Int): List<Int> {
+    val array = context.resources.obtainTypedArray(id)
+    return try { (0 until array.length()).map { array.getResourceId(it, 0).also { ref -> require(ref != 0) } } }
+    finally { array.recycle() }
+}
+
 internal fun aboutSoftwareContent(context: Context): AboutSoftwareContent {
+    val requirements = context.resources.getStringArray(R.array.about_requirements)
+    require(requirements.size >= 3 && requirements.size % 2 == 1)
     return AboutSoftwareContent(
-        intro = context.getString(R.string.about_detail_01),
-        featureGroups = listOf(
-            AboutBulletGroup(
-                title = context.getString(R.string.about_detail_02),
-                items = listOf(
-                    context.getString(R.string.about_detail_03),
-                    context.getString(R.string.about_detail_04),
-                    context.getString(R.string.about_detail_05),
-                    context.getString(R.string.about_detail_06),
-                    context.getString(R.string.about_detail_07),
-                    context.getString(R.string.about_detail_08),
-                ),
-            ),
-            AboutBulletGroup(
-                title = context.getString(R.string.about_detail_09),
-                items = listOf(
-                    context.getString(R.string.about_detail_10),
-                    context.getString(R.string.about_detail_11),
-                    context.getString(R.string.about_detail_12),
-                    context.getString(R.string.about_detail_13),
-                    context.getString(R.string.about_detail_14),
-                ),
-            ),
-            AboutBulletGroup(
-                title = context.getString(R.string.about_detail_15),
-                items = listOf(
-                    context.getString(R.string.about_detail_16),
-                    context.getString(R.string.about_detail_17),
-                    context.getString(R.string.about_detail_18),
-                ),
-            ),
-            AboutBulletGroup(
-                title = context.getString(R.string.about_detail_19),
-                items = listOf(
-                    context.getString(R.string.about_detail_20),
-                    context.getString(R.string.about_detail_21),
-                    context.getString(R.string.about_detail_22),
-                ),
-            ),
-        ),
-        requirements = listOf(
-            AboutKeyValue(context.getString(R.string.about_detail_23), context.getString(R.string.about_detail_24)),
-            AboutKeyValue(context.getString(R.string.about_detail_25), context.getString(R.string.about_detail_26)),
-            AboutKeyValue(context.getString(R.string.about_detail_27), context.getString(R.string.about_detail_28)),
-        ),
-        requirementHint = context.getString(R.string.about_detail_29),
-        guideGroups = listOf(
-            AboutNumberedGroup(
-                title = context.getString(R.string.about_detail_30),
-                steps = listOf(
-                    context.getString(R.string.about_detail_31),
-                    context.getString(R.string.about_detail_32),
-                    context.getString(R.string.about_detail_33),
-                    context.getString(R.string.about_detail_34),
-                ),
-            ),
-            AboutNumberedGroup(
-                title = context.getString(R.string.about_detail_35),
-                steps = listOf(
-                    context.getString(R.string.about_detail_36),
-                    context.getString(R.string.about_detail_37),
-                    context.getString(R.string.about_detail_38),
-                    context.getString(R.string.about_detail_39),
-                    context.getString(R.string.about_detail_40),
-                ),
-            ),
-        ),
+        intro = context.resources.getStringArray(R.array.about_intro).single(),
+        featureGroups = groupIds(context, R.array.about_feature_groups).map { featureGroup(context, it) },
+        requirements = requirements.dropLast(1).chunked(2).map { AboutKeyValue(it[0], it[1]) },
+        requirementHint = requirements.last(),
+        guideGroups = groupIds(context, R.array.about_guide_groups).map { guideGroup(context, it) },
     )
 }
 
 internal fun aboutVisualSections(context: Context): List<AboutVisualSection> {
-    return listOf(
-        AboutVisualSection(title = context.getString(R.string.about_detail_41), icon = Icons.Rounded.Info),
-        AboutVisualSection(title = context.getString(R.string.about_detail_42), icon = Icons.Rounded.GridView),
-        AboutVisualSection(title = context.getString(R.string.about_detail_43), icon = Icons.Rounded.PhoneAndroid),
-        AboutVisualSection(title = context.getString(R.string.about_detail_44), icon = Icons.Rounded.PlayCircle),
-    )
+    val headings = context.resources.getStringArray(R.array.about_headings)
+    val icons = listOf(Icons.Rounded.Info, Icons.Rounded.GridView, Icons.Rounded.PhoneAndroid, Icons.Rounded.PlayCircle)
+    require(headings.size == icons.size)
+    return headings.zip(icons).map { (title, icon) -> AboutVisualSection(title, icon) }
 }
