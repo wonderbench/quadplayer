@@ -1,7 +1,6 @@
 package com.quadplayer.feature.player
 
 import android.app.Activity
-import android.app.PictureInPictureParams
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import androidx.activity.ComponentActivity
@@ -115,6 +114,13 @@ fun PlayerScreen(
     var showMore by remember { mutableStateOf(false) }
     var showSpeed by remember { mutableStateOf(false) }
     var inPip by remember { mutableStateOf(activity?.isInPictureInPictureMode == true) }
+    var pickerOpen by remember { mutableStateOf(false) }
+    val pipSupported = context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
+    val displaySize = state.playerState.videoSize
+    val hasDisplaySize = displaySize.width > 0 && displaySize.height > 0
+    val videoWidth = if (hasDisplaySize) displaySize.width else state.video?.width ?: 0
+    val videoHeight = if (hasDisplaySize) displaySize.height else state.video?.height ?: 0
+    val pixelRatio = if (hasDisplaySize) displaySize.pixelWidthHeightRatio else 1f
     var speedBeforeHold by remember { mutableStateOf<PlaybackSpeed?>(null) }
     fun endSpeedHold() {
         speedBeforeHold?.let(viewModel::setSpeed)
@@ -126,6 +132,23 @@ fun PlayerScreen(
         val listener = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { inPip = it.isInPictureInPictureMode }
         component?.addOnPictureInPictureModeChangedListener(listener)
         onDispose { component?.removeOnPictureInPictureModeChangedListener(listener) }
+    }
+    DisposableEffect(activity, pipSupported, videoWidth, videoHeight, pixelRatio, state.settings.autoPictureInPicture, state.playerState.isPlaying, inPip, pickerOpen) {
+        if (activity != null && pipSupported) {
+            runCatching {
+                activity.setPictureInPictureParams(pipParams(videoWidth, videoHeight,
+                    state.settings.autoPictureInPicture && state.playerState.isPlaying && !inPip && !pickerOpen, pixelRatio))
+            }
+        }
+        onDispose {
+            if (activity != null && pipSupported && android.os.Build.VERSION.SDK_INT >= 31) {
+                runCatching { activity.setPictureInPictureParams(pipParams(videoWidth, videoHeight, false, pixelRatio)) }
+            }
+        }
+    }
+    fun suppressAutoPipForPicker() {
+        pickerOpen = true
+        if (activity != null && pipSupported) runCatching { activity.setPictureInPictureParams(pipParams(videoWidth, videoHeight, false, pixelRatio)) }
     }
     var floatingActionsOnLeft by rememberSaveable { mutableStateOf(false) }
 
@@ -139,6 +162,7 @@ fun PlayerScreen(
     }
 
     val subtitlePicker = rememberLauncherForActivityResult(OpenDocument()) { uri ->
+        pickerOpen = false
         uri?.let {
             runCatching {
                 context.contentResolver.takePersistableUriPermission(it, FLAG_GRANT_READ_URI_PERMISSION)
@@ -147,6 +171,7 @@ fun PlayerScreen(
         }
     }
     val audioPicker = rememberLauncherForActivityResult(OpenDocument()) { uri ->
+        pickerOpen = false
         uri?.let {
             runCatching {
                 context.contentResolver.takePersistableUriPermission(it, FLAG_GRANT_READ_URI_PERMISSION)
@@ -349,7 +374,7 @@ fun PlayerScreen(
                                     if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) {
                                         DropdownMenuItem(text = { Text(stringResource(R.string.player_pip)) }, onClick = {
                                             showMore = false
-                                            runCatching { activity?.enterPictureInPictureMode(PictureInPictureParams.Builder().build()) }
+                                            runCatching { activity?.enterPictureInPictureMode(pipParams(videoWidth, videoHeight, false, pixelRatio)) }
                                         })
                                     }
                                 }
@@ -437,7 +462,7 @@ fun PlayerScreen(
                         if (context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)) TextButton(
                             onClick = {
                                 runCatching { (context as? Activity)?.enterPictureInPictureMode(
-                                    PictureInPictureParams.Builder().build(),
+                                    pipParams(videoWidth, videoHeight, false, pixelRatio),
                                 ) }
                             },
                         ) {
@@ -462,7 +487,7 @@ fun PlayerScreen(
                 showAudioDialog = false
             },
             extraAction = {
-                TextButton(onClick = { audioPicker.launch(arrayOf("audio/*")) }) {
+                TextButton(onClick = { suppressAutoPipForPicker(); audioPicker.launch(arrayOf("audio/*")) }) {
                     Text(stringResource(R.string.player_choose_external_audio))
                 }
             },
@@ -481,7 +506,7 @@ fun PlayerScreen(
                 showSubtitleDialog = false
             },
             extraAction = {
-                TextButton(onClick = { subtitlePicker.launch(arrayOf("*/*")) }) {
+                TextButton(onClick = { suppressAutoPipForPicker(); subtitlePicker.launch(arrayOf("*/*")) }) {
                     Text(stringResource(R.string.player_choose_external_subtitle))
                 }
             },
