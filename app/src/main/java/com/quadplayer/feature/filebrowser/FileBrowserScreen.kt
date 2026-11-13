@@ -41,6 +41,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +54,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quadplayer.core.ui.rememberMediaAccess
 import com.quadplayer.core.ui.VideoThumbnail
+import com.quadplayer.core.ui.CompactVideoCard
+import com.quadplayer.core.ui.SearchPanelButton
 import com.quadplayer.R
 import com.quadplayer.core.model.PlaylistSummary
 import com.quadplayer.core.model.VideoFile
@@ -69,6 +72,7 @@ fun FileBrowserScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val compactHeight = LocalConfiguration.current.screenHeightDp < 480
+    var searchExpanded by rememberSaveable(compactHeight) { mutableStateOf(!compactHeight) }
     val permission = rememberMediaAccess(viewModel::refresh)
     var playlistTarget by remember { mutableStateOf<VideoFile?>(null) }
     var showFolderPicker by remember { mutableStateOf(false) }
@@ -105,8 +109,10 @@ fun FileBrowserScreen(
             if (compactHeight) {
                 Text(pluralStringResource(R.plurals.folders_current_view_summary, uiState.videos.size, uiState.videos.size,
                     formatDuration(uiState.totalDurationMs), formatFileSize(uiState.totalSizeBytes)),
+                    modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis,
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            if (compactHeight) SearchPanelButton(searchExpanded, uiState.videoQuery.isNotBlank() || uiState.sortMode != FileBrowserSortMode.NAME) { searchExpanded = !searchExpanded }
             RoundIconButton(onClick = viewModel::refresh) {
                 Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.common_refresh))
             }
@@ -132,7 +138,7 @@ fun FileBrowserScreen(
             )
         }
 
-        QuietTextField(
+        if (!compactHeight || searchExpanded) QuietTextField(
             value = uiState.videoQuery,
             onValueChange = viewModel::updateVideoQuery,
             modifier = Modifier.fillMaxWidth(),
@@ -162,7 +168,7 @@ fun FileBrowserScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
 
-        Row(
+        if (!compactHeight || searchExpanded) Row(
             modifier = Modifier.horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -193,18 +199,18 @@ fun FileBrowserScreen(
             )
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(320.dp),
+                columns = GridCells.Adaptive(280.dp),
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(start = 4.dp, end = 4.dp, top = 4.dp, bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 gridItems(uiState.videos, key = { it.id }) { video ->
-                    VideoRow(
+                    CompactVideoCard(
                         video = video,
-                        onOpenVideo = onOpenVideo,
-                        onToggleFavorite = viewModel::toggleFavorite,
-                        onAddToPlaylist = { playlistTarget = it },
+                        onOpen = { onOpenVideo(video.id) },
+                        onToggleFavorite = { viewModel.toggleFavorite(video.id) },
+                        onAddToPlaylist = { playlistTarget = video },
                     )
                 }
             }
@@ -374,70 +380,6 @@ private fun FolderChoiceRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-    }
-}
-
-@Composable
-private fun VideoRow(
-    video: VideoFile,
-    onOpenVideo: (Long) -> Unit,
-    onToggleFavorite: (Long) -> Unit,
-    onAddToPlaylist: (VideoFile) -> Unit,
-) {
-    DepthCard(onClick = { onOpenVideo(video.id) }, modifier = Modifier.fillMaxWidth()) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            VideoThumbnail(video)
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                Text(
-                    text = video.displayName,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = stringResource(
-                        R.string.common_folder_duration,
-                        if (video.folderPath == "imported") stringResource(R.string.media_imported_folder) else video.folderName,
-                        formatDuration(video.durationMs),
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Text(
-                    text = stringResource(
-                        R.string.folders_video_meta,
-                        formatDuration(video.durationMs),
-                        formatFileSize(video.sizeBytes),
-                    ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            RoundIconButton(onClick = { onToggleFavorite(video.id) }) {
-                Icon(
-                    imageVector = if (video.isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                    contentDescription = stringResource(if (video.isFavorite) R.string.favorite_remove else R.string.favorite_add),
-                )
-            }
-        }
-        Text(
-            text = stringResource(R.string.home_add_to_playlist),
-            style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable { onAddToPlaylist(video) },
-        )
-    }
     }
 }
 

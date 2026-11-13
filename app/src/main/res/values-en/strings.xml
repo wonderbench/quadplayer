@@ -25,6 +25,11 @@
     <string name="quad_sync_not_ready">A video cannot seek yet or has an A–B loop. Try again or clear the loop.</string>
     <string name="quad_sync_incomplete">Some videos could not align or are shorter than the audio source. Check them and try again.</string>
     <string name="app_name">QuadPlayer</string>
+    <string name="search_panel_open">Show search and filters</string>
+    <string name="search_panel_close">Hide search and filters</string>
+    <string name="search_filter_active">Search or sort changed</string>
+    <string name="search_filter_inactive">Default search and sort</string>
+    <string name="video_more_actions">More actions for %1$s</string>
     <string name="nav_home">Home</string>
     <string name="nav_folders">Folders</string>
     <string name="nav_quad">Quad</string>
