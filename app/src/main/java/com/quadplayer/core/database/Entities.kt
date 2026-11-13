@@ -42,7 +42,7 @@ data class VideoEntity(
             onDelete = ForeignKey.CASCADE,
         ),
     ],
-    indices = [Index("video_id")],
+    indices = [Index(value = ["video_id"], unique = true)],
 )
 data class PlayHistoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
