@@ -201,6 +201,21 @@ class QuadPlaybackEngine(private val context: Context, private val beforeLoad: s
         slots[slotIndex].value.controller?.seekTo(positionMs)
     }
 
+    /** Null means at least one loaded video is not yet seekable. */
+    fun seekLinked(slotIndex: Int, positionMs: Long): Boolean? {
+        val source = slots[slotIndex].value.controller ?: return null
+        val controllers = slots.mapNotNull { it.value.controller }
+        if (controllers.any { !it.player.isCurrentMediaItemSeekable }) return null
+        val sourceIndex = controllers.indexOf(source)
+        val ranges = controllers.map { controller ->
+            val duration = controller.player.duration.takeIf { it > 0 }
+            SeekRange(controller.player.currentPosition.coerceAtLeast(0L), duration)
+        }
+        val targets = linkedSeekTargets(ranges, sourceIndex, positionMs)
+        controllers.zip(targets.positions).forEach { (controller, target) -> controller.seekTo(target) }
+        return targets.limited
+    }
+
     suspend fun applySettings(settings: AppSettings) {
         this.settings = settings
         slots.forEach { it.value.controller?.applySettings(settings) }

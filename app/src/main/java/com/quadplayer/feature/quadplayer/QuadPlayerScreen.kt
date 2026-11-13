@@ -221,6 +221,7 @@ fun QuadPlayerScreen(
                     .padding(8.dp),
                 viewModel = viewModel,
                 slots = state.slots,
+                linkedSeek = state.linkedSeek,
                 onInteraction = { controlsInteractionVersion += 1 },
             )
         }
@@ -365,6 +366,7 @@ private fun BottomOverlay(
     modifier: Modifier,
     viewModel: QuadPlayerViewModel,
     slots: List<QuadSlotUiState>,
+    linkedSeek: Boolean,
     onInteraction: () -> Unit,
 ) {
     Surface(
@@ -393,6 +395,11 @@ private fun BottomOverlay(
                         viewModel.syncToAudioSource()
                     },
                     label = { Text(stringResource(R.string.quad_sync_to_audio)) },
+                )
+                DepthChoiceChip(
+                    selected = linkedSeek,
+                    onClick = { onInteraction(); viewModel.toggleLinkedSeek() },
+                    label = { Text(stringResource(R.string.quad_linked_seek)) },
                 )
                 DepthChip(
                     onClick = {

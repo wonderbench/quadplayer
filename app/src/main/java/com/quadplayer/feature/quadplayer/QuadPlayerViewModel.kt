@@ -42,6 +42,7 @@ data class QuadPlayerUiState(
     val pendingSwapSource: Int? = null,
     val offerRecovery: Boolean = false,
     val recoveryAvailable: Boolean = false,
+    val linkedSeek: Boolean = false,
 )
 
 @HiltViewModel
@@ -68,6 +69,7 @@ class QuadPlayerViewModel @Inject constructor(
         }
     }
     private val pendingSwapSource = MutableStateFlow<Int?>(null)
+    private val linkedSeek = MutableStateFlow(false)
     private val recoveryPrompt = MutableStateFlow(RecoveryPrompt())
     private var sessionReady = false
     private var restoring = false
@@ -79,12 +81,14 @@ class QuadPlayerViewModel @Inject constructor(
         engine.slotStates(audioSourceManager.currentAudioSource),
         layoutManager.state,
         settingsRepository.settings,
-    ) { slots, layout, settings ->
+        linkedSeek,
+    ) { slots, layout, settings, linked ->
         QuadPlayerUiState(
             slots = slots,
             layoutMode = layout.mode,
             focusedSlot = layout.focusedSlot,
             settings = settings,
+            linkedSeek = linked,
         )
     }
 
@@ -280,8 +284,15 @@ class QuadPlayerViewModel @Inject constructor(
     }
 
     fun seekSlot(slotIndex: Int, positionMs: Long) {
-        engine.seekSlot(slotIndex, positionMs)
+        if (!linkedSeek.value) engine.seekSlot(slotIndex, positionMs)
+        else when (engine.seekLinked(slotIndex, positionMs)) {
+            null -> warningMessage.value = context.getString(R.string.quad_linked_seek_not_ready)
+            true -> warningMessage.value = context.getString(R.string.quad_linked_seek_limited)
+            false -> Unit
+        }
     }
+
+    fun toggleLinkedSeek() { linkedSeek.value = !linkedSeek.value }
 
     fun setGlobalSpeed(speed: PlaybackSpeed) {
         engine.setGlobalSpeed(speed)
