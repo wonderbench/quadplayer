@@ -26,6 +26,7 @@ import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.AlertDialog
 import com.quadplayer.ui.theme.DepthChip
+import com.quadplayer.ui.theme.DepthChoiceChip
 import androidx.compose.material3.Icon
 import com.quadplayer.ui.theme.RoundIconButton
 import androidx.compose.material3.MaterialTheme
@@ -219,6 +220,7 @@ fun QuadPlayerScreen(
                     .onSizeChanged { bottomOverlayHeight = it.height }
                     .padding(8.dp),
                 viewModel = viewModel,
+                slots = state.slots,
                 onInteraction = { controlsInteractionVersion += 1 },
             )
         }
@@ -362,6 +364,7 @@ private fun TopOverlay(
 private fun BottomOverlay(
     modifier: Modifier,
     viewModel: QuadPlayerViewModel,
+    slots: List<QuadSlotUiState>,
     onInteraction: () -> Unit,
 ) {
     Surface(
@@ -399,8 +402,10 @@ private fun BottomOverlay(
                     label = { Text(stringResource(R.string.quad_mute_all)) },
                 )
                 Text(stringResource(R.string.quad_speed_title), style = MaterialTheme.typography.labelLarge)
+                val loaded = slots.filter { it.video != null }
                 PlaybackSpeed.entries.forEach { speed ->
-                    DepthChip(
+                    DepthChoiceChip(
+                        selected = loaded.isNotEmpty() && loaded.all { it.playbackSpeed == speed },
                         onClick = {
                             onInteraction()
                             viewModel.setGlobalSpeed(speed)
@@ -649,7 +654,7 @@ private fun SlotMenuDialog(
                 item {
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         PlaybackSpeed.entries.forEach { speed ->
-                            DepthChip(onClick = { onSetSpeed(speed) }, label = { Text(if (speed == slot.playbackSpeed) "✓ ${speed.label}" else speed.label) })
+                            DepthChoiceChip(selected = speed == slot.playbackSpeed, onClick = { onSetSpeed(speed) }, label = { Text(speed.label) })
                         }
                     }
                 }
