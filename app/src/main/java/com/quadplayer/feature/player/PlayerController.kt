@@ -93,13 +93,13 @@ class PlayerController(
     private val compactLocalBuffer: Boolean = false,
     private val beforeSubtitleInspection: suspend (Uri) -> Unit = {},
     private val rememberTrackChoices: Boolean = false,
-) {
+) : QuadPlayerHandle {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val dataSourceFactory = DefaultDataSource.Factory(context)
     private var trackSelector = DefaultTrackSelector(context)
     private var currentSettings = AppSettings()
     private val _uiState = MutableStateFlow(PlayerUiState())
-    val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
+    override val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             val start = _uiState.value.loopStartMs
@@ -158,7 +158,7 @@ class PlayerController(
         }
     }
     private var playerInternal: ExoPlayer = buildPlayer(currentSettings.decoderMode)
-    val player: ExoPlayer
+    override val player: ExoPlayer
         get() = playerInternal
     var onPlayerRebuilt: ((ExoPlayer) -> Unit)? = null
 
@@ -201,7 +201,7 @@ class PlayerController(
         }
     }
 
-    suspend fun applySettings(settings: AppSettings) {
+    override suspend fun applySettings(settings: AppSettings) {
         val decoderChanged = settings.decoderMode != currentSettings.decoderMode
         currentSettings = settings
         if (decoderChanged) {
@@ -210,7 +210,7 @@ class PlayerController(
         setPlaybackSpeed(settings.defaultPlaybackSpeed)
     }
 
-    suspend fun load(video: VideoFile, startPositionMs: Long = 0L, playWhenReady: Boolean = true): Boolean {
+    override suspend fun load(video: VideoFile, startPositionMs: Long, playWhenReady: Boolean): Boolean {
         if (released) return false
         val request = ++loadGeneration
         val isNewVideo = currentVideo?.uriString != video.uriString
@@ -388,7 +388,7 @@ class PlayerController(
         updateStateFromPlayer()
     }
 
-    fun retry(playWhenReady: Boolean = true) {
+    override fun retry(playWhenReady: Boolean) {
         if (currentVideo == null) return
         _uiState.value = _uiState.value.copy(errorMessage = null, failure = null)
         if (!playWhenReady) player.pause()
@@ -396,11 +396,11 @@ class PlayerController(
         if (playWhenReady) player.play()
     }
 
-    fun play() = player.play()
+    override fun play() = player.play()
 
-    fun pause() = player.pause()
+    override fun pause() = player.pause()
 
-    fun seekTo(positionMs: Long) {
+    override fun seekTo(positionMs: Long) {
         player.seekTo(positionMs.coerceAtLeast(0L))
     }
 
@@ -408,23 +408,23 @@ class PlayerController(
         seekTo(player.currentPosition + deltaMs)
     }
 
-    fun setProgressUpdatesEnabled(enabled: Boolean) {
+    override fun setProgressUpdatesEnabled(enabled: Boolean) {
         progressUpdatesEnabled.value = enabled
         if (enabled) updateStateFromPlayer(includeTracks = false)
     }
 
-    fun setPlaybackSpeed(speed: PlaybackSpeed) {
+    override fun setPlaybackSpeed(speed: PlaybackSpeed) {
         player.setPlaybackSpeed(speed.value)
         _uiState.value = _uiState.value.copy(playbackSpeed = speed)
     }
 
-    fun setLoopStart(): Boolean {
+    override fun setLoopStart(): Boolean {
         if (!player.isCurrentMediaItemSeekable) return false
         _uiState.value = _uiState.value.copy(loopStartMs = player.currentPosition.coerceAtLeast(0L), loopEndMs = null)
         return true
     }
 
-    fun setLoopEnd(): Boolean {
+    override fun setLoopEnd(): Boolean {
         val start = _uiState.value.loopStartMs ?: return false
         val end = player.currentPosition
         if (!player.isCurrentMediaItemSeekable || end - start < 250L) return false
@@ -434,7 +434,7 @@ class PlayerController(
         return true
     }
 
-    fun clearLoop() {
+    override fun clearLoop() {
         _uiState.value = _uiState.value.copy(loopStartMs = null, loopEndMs = null)
     }
 
@@ -483,7 +483,7 @@ class PlayerController(
         updateStateFromPlayer()
     }
 
-    fun release() {
+    override fun release() {
         if (released) return
         released = true
         loadGeneration++

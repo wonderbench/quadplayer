@@ -8,6 +8,7 @@ import com.quadplayer.core.model.PlaybackSpeed
 import com.quadplayer.core.model.PlaybackState
 import com.quadplayer.core.model.VideoFile
 import com.quadplayer.feature.player.PlayerController
+import com.quadplayer.feature.player.QuadPlayerHandle
 import com.quadplayer.feature.player.PlayerUiState
 import com.quadplayer.feature.player.PlaybackFailure
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -49,27 +50,33 @@ data class QuadSlotUiState(
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class QuadPlaybackEngine(
-    private val context: Context,
+class QuadPlaybackEngine internal constructor(
+    private val controllerFactory: () -> QuadPlayerHandle,
     private val awaitReadyOverride: (suspend (Player) -> Boolean)? = null,
     private val beforeLoad: suspend (VideoFile) -> Unit = {},
 ) {
-    private data class Slot(val video: VideoFile? = null, val controller: PlayerController? = null)
+    constructor(
+        context: Context,
+        awaitReadyOverride: (suspend (Player) -> Boolean)? = null,
+        beforeLoad: suspend (VideoFile) -> Unit = {},
+    ) : this({ PlayerController(context, compactLocalBuffer = true) }, awaitReadyOverride, beforeLoad)
+
+    private data class Slot(val video: VideoFile? = null, val controller: QuadPlayerHandle? = null)
     private val slots = List(4) { MutableStateFlow(Slot()) }
     private val volumes = MutableList(4) { 0f }
-    private val pending = arrayOfNulls<PlayerController>(4)
+    private val pending = arrayOfNulls<QuadPlayerHandle>(4)
     private val generations = LongArray(4)
     private var settings = AppSettings()
     private var globalSpeed: PlaybackSpeed? = null
     private var progressVisibleSlot = -1
     private var suspended = false
     private var interrupted = false
-    private val resumeIntents = mutableMapOf<PlayerController, Boolean>()
+    private val resumeIntents = mutableMapOf<QuadPlayerHandle, Boolean>()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private class SyncOperation(val playIntents: Map<PlayerController, Boolean>) { var job: Job? = null }
+    private class SyncOperation(val playIntents: Map<QuadPlayerHandle, Boolean>) { var job: Job? = null }
     private var synchronization: SyncOperation? = null
 
-    fun controllerAt(index: Int): PlayerController? = slots[index].value.controller
+    fun controllerAt(index: Int): QuadPlayerHandle? = slots[index].value.controller
     internal fun hasController(index: Int): Boolean = slots[index].value.controller != null
 
     fun slotStates(audioSourceFlow: Flow<Int>): Flow<List<QuadSlotUiState>> {
@@ -98,7 +105,7 @@ class QuadPlaybackEngine(
         cancelPending(slotIndex)
         val generation = generations[slotIndex]
         val old = slots[slotIndex].value.controller
-        val controller = PlayerController(context, compactLocalBuffer = true)
+        val controller = controllerFactory()
         controller.setProgressUpdatesEnabled(false)
         pending[slotIndex] = controller
         try {
