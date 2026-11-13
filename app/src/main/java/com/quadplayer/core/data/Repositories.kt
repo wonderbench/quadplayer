@@ -33,8 +33,6 @@ interface VideoRepository {
     val favorites: Flow<List<VideoFile>>
     val folders: Flow<List<FolderInfo>>
 
-    fun videosByFolder(folderPath: String): Flow<List<VideoFile>>
-    fun search(query: String): Flow<List<VideoFile>>
     suspend fun refreshVideos()
     suspend fun importVideo(uri: Uri): VideoFile?
     suspend fun getVideo(videoId: Long): VideoFile?
@@ -76,14 +74,6 @@ class DefaultVideoRepository @Inject constructor(
     override val videos: Flow<List<VideoFile>> = videoDao.observeAll().map { rows -> rows.map { it.toModel() } }
     override val favorites: Flow<List<VideoFile>> = videoDao.observeFavorites().map { rows -> rows.map { it.toModel() } }
     override val folders: Flow<List<FolderInfo>> = videoDao.observeFolders()
-
-    override fun videosByFolder(folderPath: String): Flow<List<VideoFile>> {
-        return videoDao.observeByFolder(folderPath).map { rows -> rows.map { it.toModel() } }
-    }
-
-    override fun search(query: String): Flow<List<VideoFile>> {
-        return videoDao.search(query).map { rows -> rows.map { it.toModel() } }
-    }
 
     override suspend fun refreshVideos() = refreshCoordinator.refresh()
 

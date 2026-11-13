@@ -2,6 +2,7 @@ package com.quadplayer.feature.player
 
 import android.content.Context
 import android.net.Uri
+import android.os.Looper
 import android.provider.OpenableColumns
 import androidx.annotation.OptIn
 import androidx.media3.common.C
@@ -17,11 +18,15 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultDataSource
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.Renderer
+import androidx.media3.exoplayer.text.TextOutput
+import androidx.media3.exoplayer.text.TextRenderer
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector
 import androidx.media3.exoplayer.mediacodec.MediaCodecUtil
 import androidx.media3.exoplayer.source.MergingMediaSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import com.quadplayer.R
@@ -47,6 +52,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+private const val EXTERNAL_SUBTITLE_TRACK_ID = "quadplayer-external-subtitle"
+private fun isExternalSubtitleTrack(id: String?): Boolean =
+    id == EXTERNAL_SUBTITLE_TRACK_ID || id?.endsWith(":$EXTERNAL_SUBTITLE_TRACK_ID") == true
+
 data class TrackOption(
     val groupIndex: Int,
     val trackIndex: Int,
@@ -70,6 +79,9 @@ data class PlayerUiState(
     val failure: PlaybackFailure? = null,
     val playWhenReady: Boolean = false,
     val videoSize: VideoSize = VideoSize.UNKNOWN,
+    val repeatOne: Boolean = false,
+    val loopStartMs: Long? = null,
+    val loopEndMs: Long? = null,
 )
 
 @OptIn(UnstableApi::class)
@@ -77,6 +89,7 @@ class PlayerController(
     private val context: Context,
     private val handleAudioFocus: Boolean = false,
     private val compactLocalBuffer: Boolean = false,
+    private val beforeSubtitleInspection: suspend (Uri) -> Unit = {},
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val dataSourceFactory = DefaultDataSource.Factory(context)
@@ -86,6 +99,11 @@ class PlayerController(
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
+            val start = _uiState.value.loopStartMs
+            if (playbackState == Player.STATE_ENDED && playerInternal.playWhenReady && start != null && _uiState.value.loopEndMs != null) {
+                playerInternal.seekTo(start)
+                return
+            }
             updateStateFromPlayer()
         }
 
@@ -98,11 +116,29 @@ class PlayerController(
         }
 
         override fun onTracksChanged(tracks: Tracks) {
+            if (pendingExternalSubtitleSelection) {
+                val group = tracks.groups.firstOrNull { candidate ->
+                    candidate.type == C.TRACK_TYPE_TEXT && (0 until candidate.length).any { isExternalSubtitleTrack(candidate.getTrackFormat(it).id) }
+                }
+                if (group != null) {
+                    val index = (0 until group.length).first { isExternalSubtitleTrack(group.getTrackFormat(it).id) }
+                    pendingExternalSubtitleSelection = false
+                    playerInternal.trackSelectionParameters = playerInternal.trackSelectionParameters.buildUpon()
+                        .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                        .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                        .addOverride(TrackSelectionOverride(group.mediaTrackGroup, listOf(index)))
+                        .build()
+                }
+            }
             updateStateFromPlayer()
         }
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
             _uiState.value = _uiState.value.copy(videoSize = videoSize)
+        }
+
+        override fun onRepeatModeChanged(repeatMode: Int) {
+            _uiState.value = _uiState.value.copy(repeatOne = repeatMode == Player.REPEAT_MODE_ONE)
         }
 
         override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
@@ -128,6 +164,9 @@ class PlayerController(
     private var externalSubtitleUri: Uri? = null
     private var externalSubtitleMime: String? = null
     private var subtitleSelectionExplicit = false
+    private var subtitleSelectionGeneration = 0L
+    private var selectExternalOnNextLoad = false
+    private var pendingExternalSubtitleSelection = false
     private var externalAudioUri: Uri? = null
     private var released = false
     private var loadGeneration = 0L
@@ -142,6 +181,15 @@ class PlayerController(
                         delay(300)
                     }
             }
+        }
+        scope.launch {
+            uiState.map { Triple(it.loopStartMs, it.loopEndMs, it.isPlaying) }.distinctUntilChanged()
+                .collectLatest { (start, end, playing) ->
+                    if (start != null && end != null && playing) while (true) {
+                        if (player.currentPosition >= end) player.seekTo(start)
+                        delay(40)
+                    }
+                }
         }
     }
 
@@ -159,10 +207,17 @@ class PlayerController(
         val request = ++loadGeneration
         val isNewVideo = currentVideo?.uriString != video.uriString
         if (isNewVideo) {
+            subtitleSelectionGeneration++
+            selectExternalOnNextLoad = false
+            pendingExternalSubtitleSelection = false
             externalSubtitleUri = null
             externalSubtitleMime = null
             subtitleSelectionExplicit = false
             externalAudioUri = null
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                .build()
         }
         _uiState.value = _uiState.value.copy(errorMessage = null, failure = null, videoSize = if (isNewVideo) VideoSize.UNKNOWN else _uiState.value.videoSize)
         currentVideo = video
@@ -172,12 +227,17 @@ class PlayerController(
             if (!subtitleSelectionExplicit && matchingFile != null) {
                 externalSubtitleUri = Uri.fromFile(matchingFile)
                 externalSubtitleMime = subtitleMimeType(matchingFile.name, null)
+                selectExternalOnNextLoad = true
             }
         }
         return withContext(Dispatchers.Main.immediate) {
             if (released || request != loadGeneration) return@withContext false
             val source = buildMediaSource(video.uri, externalSubtitleUri, externalAudioUri)
+            val selectExternal = selectExternalOnNextLoad || pendingExternalSubtitleSelection
+            pendingExternalSubtitleSelection = false
             player.setMediaSource(source)
+            pendingExternalSubtitleSelection = selectExternal
+            selectExternalOnNextLoad = false
             player.prepare()
             player.seekTo(startPositionMs)
             player.playWhenReady = playWhenReady
@@ -186,8 +246,10 @@ class PlayerController(
     }
 
     suspend fun setExternalSubtitle(uri: Uri?) {
+        val request = ++subtitleSelectionGeneration
         val videoBeforeQuery = currentVideo?.uriString
         val mime = uri?.let { selected -> withContext(Dispatchers.IO) {
+            beforeSubtitleInspection(selected)
             val resolver = context.contentResolver
             val name = runCatching {
                 resolver.query(selected, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
@@ -197,10 +259,18 @@ class PlayerController(
             }.getOrNull()
             subtitleMimeType(name ?: selected.lastPathSegment, runCatching { resolver.getType(selected) }.getOrNull())
         } }
-        if (released || currentVideo?.uriString != videoBeforeQuery) return
+        if (released || currentVideo?.uriString != videoBeforeQuery || request != subtitleSelectionGeneration) return
         subtitleSelectionExplicit = true
         externalSubtitleUri = uri
         externalSubtitleMime = mime
+        selectExternalOnNextLoad = uri != null
+        pendingExternalSubtitleSelection = false
+        if (uri != null) {
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                .build()
+        }
         reloadCurrent()
     }
 
@@ -215,6 +285,9 @@ class PlayerController(
 
     fun clear() {
         loadGeneration++
+        subtitleSelectionGeneration++
+        selectExternalOnNextLoad = false
+        pendingExternalSubtitleSelection = false
         currentVideo = null
         externalSubtitleUri = null
         externalSubtitleMime = null
@@ -256,6 +329,26 @@ class PlayerController(
         _uiState.value = _uiState.value.copy(playbackSpeed = speed)
     }
 
+    fun setLoopStart(): Boolean {
+        if (!player.isCurrentMediaItemSeekable) return false
+        _uiState.value = _uiState.value.copy(loopStartMs = player.currentPosition.coerceAtLeast(0L), loopEndMs = null)
+        return true
+    }
+
+    fun setLoopEnd(): Boolean {
+        val start = _uiState.value.loopStartMs ?: return false
+        val end = player.currentPosition
+        if (!player.isCurrentMediaItemSeekable || end - start < 250L) return false
+        player.repeatMode = Player.REPEAT_MODE_OFF
+        _uiState.value = _uiState.value.copy(loopEndMs = end)
+        player.seekTo(start)
+        return true
+    }
+
+    fun clearLoop() {
+        _uiState.value = _uiState.value.copy(loopStartMs = null, loopEndMs = null)
+    }
+
     fun cycleAspectMode() {
         val next = when (_uiState.value.aspectMode) {
             AspectMode.FIT -> AspectMode.FILL
@@ -281,9 +374,13 @@ class PlayerController(
     }
 
     fun selectSubtitleTrack(option: TrackOption?) {
+        subtitleSelectionGeneration++
+        subtitleSelectionExplicit = true
+        selectExternalOnNextLoad = false
+        pendingExternalSubtitleSelection = false
         val builder = player.trackSelectionParameters.buildUpon()
         builder.clearOverridesOfType(C.TRACK_TYPE_TEXT)
-        builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, option == null && externalSubtitleUri == null)
+        builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, option == null)
         if (option != null) {
             val group = player.currentTracks.groups[option.groupIndex]
             builder.addOverride(TrackSelectionOverride(group.mediaTrackGroup, listOf(option.trackIndex)))
@@ -296,6 +393,7 @@ class PlayerController(
         if (released) return
         released = true
         loadGeneration++
+        subtitleSelectionGeneration++
         progressJob?.cancel()
         scope.cancel()
         player.removeListener(playerListener)
@@ -311,7 +409,13 @@ class PlayerController(
 
     private fun buildPlayer(decoderMode: DecoderMode): ExoPlayer {
         trackSelector = DefaultTrackSelector(context)
-        val renderersFactory = DefaultRenderersFactory(context)
+        // Media3 1.5's extraction-time subtitle parser can miss cues spanning a seek.
+        // Legacy decoding loads the complete sidecar so choosing it mid-cue works.
+        val renderersFactory = object : DefaultRenderersFactory(context) {
+            override fun buildTextRenderers(context: Context, output: TextOutput, outputLooper: Looper, extensionRendererMode: Int, out: ArrayList<Renderer>) {
+                out.add(TextRenderer(output, outputLooper).apply { experimentalSetLegacyDecodingEnabled(true) })
+            }
+        }
             .setEnableDecoderFallback(decoderMode == DecoderMode.AUTO)
             .setMediaCodecSelector(buildMediaCodecSelector(decoderMode))
 
@@ -382,7 +486,8 @@ class PlayerController(
         videoUri: Uri,
         subtitleUri: Uri?,
         audioUri: Uri?,
-    ) = ProgressiveMediaSource.Factory(dataSourceFactory)
+    ) = DefaultMediaSourceFactory(dataSourceFactory)
+        .experimentalParseSubtitlesDuringExtraction(false)
         .createMediaSource(
             MediaItem.Builder()
                 .setUri(videoUri)
@@ -401,6 +506,7 @@ class PlayerController(
 
     private fun buildSubtitleConfiguration(uri: Uri): MediaItem.SubtitleConfiguration {
         return MediaItem.SubtitleConfiguration.Builder(uri)
+            .setId(EXTERNAL_SUBTITLE_TRACK_ID)
             .setMimeType(externalSubtitleMime ?: MimeTypes.TEXT_VTT)
             .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
             .build()

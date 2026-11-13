@@ -25,6 +25,220 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class QuadPlaybackEngineTest {
+    @Test fun lateReplacementCancelsPendingSynchronization() = runBlocking(Dispatchers.Main) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = File(context.cacheDir, "quad-sync-replace.wav")
+        val samples = ByteArray(16000 * 2 * 5)
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray()).putInt(36 + samples.size).put("WAVEfmt ".toByteArray())
+            .putInt(16).putShort(1).putShort(1).putInt(16000).putInt(32000)
+            .putShort(2).putShort(16).put("data".toByteArray()).putInt(samples.size)
+        file.writeBytes(header.array() + samples)
+        fun video(id: Long) = VideoFile(id, Uri.fromFile(file).toString(), "test$id", "test", "test", 5000, file.length(), 0, 0, "audio/wav", 0, false, true)
+        val loadEntered = CompletableDeferred<Unit>()
+        val continueLoad = CompletableDeferred<Unit>()
+        val syncEntered = CompletableDeferred<Unit>()
+        val continueSync = CompletableDeferred<Boolean>()
+        val engine = QuadPlaybackEngine(context, awaitReadyOverride = { syncEntered.complete(Unit); continueSync.await() }) {
+            if (it.id == 3L) { loadEntered.complete(Unit); continueLoad.await() }
+        }
+        try {
+            engine.load(0, video(1)); engine.load(1, video(2))
+            withTimeout(10000) { while (!engine.controllerAt(1)!!.player.isCurrentMediaItemSeekable) delay(50) }
+            val replacement = async { engine.load(1, video(3)) }
+            loadEntered.await()
+            var callbacks = 0
+            assertTrue(engine.synchronize(0) { callbacks++ })
+            withTimeout(10000) { syncEntered.await() }
+            continueLoad.complete(Unit)
+            assertTrue(replacement.await())
+            continueSync.complete(true)
+            delay(100)
+            assertEquals(0, callbacks)
+            assertEquals(3L, engine.slotStates(flowOf(-1)).first()[1].video?.id)
+            assertTrue(engine.controllerAt(0)!!.player.playWhenReady)
+            assertTrue(engine.controllerAt(1)!!.player.playWhenReady)
+        } finally { engine.release(); file.delete() }
+    }
+
+    @Test fun synchronizationWaitsAndInterruptionNeverRestartsPlayback() = runBlocking(Dispatchers.Main) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = File(context.cacheDir, "quad-ready-sync.wav")
+        val samples = ByteArray(16000 * 2 * 5)
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray()).putInt(36 + samples.size).put("WAVEfmt ".toByteArray())
+            .putInt(16).putShort(1).putShort(1).putInt(16000).putInt(32000)
+            .putShort(2).putShort(16).put("data".toByteArray()).putInt(samples.size)
+        file.writeBytes(header.array() + samples)
+        fun video(id: Long) = VideoFile(id, Uri.fromFile(file).toString(), "test$id", "test", "test", 5000, file.length(), 0, 0, "audio/wav", 0, false, true)
+        var entered = CompletableDeferred<Unit>()
+        var resume = CompletableDeferred<Boolean>()
+        val engine = QuadPlaybackEngine(context, awaitReadyOverride = { entered.complete(Unit); resume.await() })
+        try {
+            engine.load(0, video(1)); engine.load(1, video(2))
+            withTimeout(10000) { while (!engine.controllerAt(1)!!.player.isCurrentMediaItemSeekable) delay(50) }
+            engine.setSlotPlaying(0, false); engine.setSlotPlaying(1, false)
+            engine.seekSlot(0, 1700); engine.seekSlot(1, 500)
+            engine.setSlotPlaying(0, true)
+            var callbacks = 0
+            assertTrue(engine.synchronize(0) { callbacks++ })
+            withTimeout(10000) { entered.await() }
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+            assertFalse(engine.controllerAt(1)!!.player.playWhenReady)
+            assertTrue(engine.snapshot()[0]!!.playing)
+            assertFalse(engine.snapshot()[1]!!.playing)
+            assertTrue(kotlin.math.abs(engine.currentPosition(1)!! - engine.currentPosition(0)!!) <= 1)
+            engine.suspendPlayback()
+            resume.complete(true)
+            engine.resumePlayback()
+            assertTrue(engine.controllerAt(0)!!.player.playWhenReady)
+            assertFalse(engine.controllerAt(1)!!.player.playWhenReady)
+            assertEquals(0, callbacks)
+
+            entered = CompletableDeferred(); resume = CompletableDeferred()
+            assertTrue(engine.synchronize(0) { callbacks++ })
+            withTimeout(10000) { entered.await() }
+            engine.setSlotPlaying(0, false)
+            resume.complete(true)
+            delay(100)
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+            assertFalse(engine.controllerAt(1)!!.player.playWhenReady)
+            assertEquals(0, callbacks)
+
+            entered = CompletableDeferred(); resume = CompletableDeferred()
+            val completed = CompletableDeferred<Boolean>()
+            assertTrue(engine.synchronize(0) { callbacks++; completed.complete(it) })
+            withTimeout(10000) { entered.await() }
+            resume.complete(true)
+            assertTrue(withTimeout(10000) { completed.await() })
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+            assertFalse(engine.controllerAt(1)!!.player.playWhenReady)
+            assertEquals(1, callbacks)
+
+            engine.setSlotPlaying(0, true)
+            entered = CompletableDeferred(); resume = CompletableDeferred()
+            assertTrue(engine.synchronize(0) { callbacks++ })
+            withTimeout(10000) { entered.await() }
+            engine.interruptPlayback()
+            resume.complete(true)
+            delay(100)
+            assertFalse(engine.controllerAt(0)!!.player.playWhenReady)
+            assertFalse(engine.controllerAt(1)!!.player.playWhenReady)
+            assertEquals(1, callbacks)
+        } finally { engine.release(); file.delete() }
+    }
+
+    @Test fun synchronizationUsesLiveSourcePositionWithoutSeekingSource() = runBlocking(Dispatchers.Main) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = File(context.cacheDir, "quad-ready-sync-real.wav")
+        val samples = ByteArray(16000 * 2 * 5)
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray()).putInt(36 + samples.size).put("WAVEfmt ".toByteArray())
+            .putInt(16).putShort(1).putShort(1).putInt(16000).putInt(32000)
+            .putShort(2).putShort(16).put("data".toByteArray()).putInt(samples.size)
+        file.writeBytes(header.array() + samples)
+        fun video(id: Long) = VideoFile(id, Uri.fromFile(file).toString(), "test$id", "test", "test", 5000, file.length(), 0, 0, "audio/wav", 0, false, true)
+        val engine = QuadPlaybackEngine(context)
+        try {
+            engine.load(0, video(1)); engine.load(1, video(2))
+            engine.setSlotPlaying(0, false); engine.setSlotPlaying(1, false)
+            withTimeout(10000) { while (!engine.controllerAt(1)!!.player.isCurrentMediaItemSeekable) delay(50) }
+            engine.seekSlot(0, 1700); engine.seekSlot(1, 500)
+            val source = engine.controllerAt(0)!!.player
+            var sourceSeeks = 0
+            source.addListener(object : Player.Listener {
+                override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                    if (reason == Player.DISCONTINUITY_REASON_SEEK) sourceSeeks++
+                }
+            })
+            val completed = CompletableDeferred<Boolean>()
+            assertTrue(engine.synchronize(0) { completed.complete(it) })
+            assertTrue(withTimeout(10000) { completed.await() })
+            assertEquals(0, sourceSeeks)
+            assertEquals(1700L, source.currentPosition)
+            assertEquals(1700L, engine.currentPosition(1))
+            assertFalse(source.playWhenReady)
+            assertFalse(engine.controllerAt(1)!!.player.playWhenReady)
+        } finally { engine.release(); file.delete() }
+    }
+
+    @Test fun abLoopRejectsInvalidRangeFollowsSwapAndStopsWhenRepeatEnabled() = runBlocking(Dispatchers.Main) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = File(context.cacheDir, "quad-ab-loop.wav")
+        val samples = ByteArray(16000 * 2 * 2)
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray()).putInt(36 + samples.size).put("WAVEfmt ".toByteArray())
+            .putInt(16).putShort(1).putShort(1).putInt(16000).putInt(32000)
+            .putShort(2).putShort(16).put("data".toByteArray()).putInt(samples.size)
+        file.writeBytes(header.array() + samples)
+        fun video(id: Long) = VideoFile(id, Uri.fromFile(file).toString(), "test$id", "test", "test", 2000, file.length(), 0, 0, "audio/wav", 0, false, true)
+        val engine = QuadPlaybackEngine(context)
+        try {
+            engine.load(0, video(1)); engine.load(1, video(2))
+            engine.setSlotPlaying(0, false); engine.setSlotPlaying(1, false)
+            val player = engine.controllerAt(0)!!.player
+            withTimeout(10000) { while (!player.isCurrentMediaItemSeekable) delay(50) }
+            engine.seekSlot(0, 500); assertTrue(engine.setLoopStart(0))
+            engine.seekSlot(0, 600); assertFalse(engine.setLoopEnd(0))
+            engine.seekSlot(0, 1200); assertTrue(engine.setLoopEnd(0))
+            assertEquals(500L, player.currentPosition)
+            engine.swap(0, 1)
+            assertEquals(500L, engine.slotStates(flowOf(-1)).first()[1].loopStartMs)
+            val looped = CompletableDeferred<Unit>()
+            player.addListener(object : Player.Listener {
+                override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                    if (reason == Player.DISCONTINUITY_REASON_SEEK && oldPosition.positionMs >= 1200L && newPosition.positionMs == 500L) looped.complete(Unit)
+                }
+            })
+            engine.setSlotPlaying(1, true)
+            withTimeout(10000) { looped.await() }
+            engine.setSlotPlaying(1, false)
+            assertFalse(player.playWhenReady)
+            engine.setSlotRepeat(1, true)
+            val slot = engine.slotStates(flowOf(-1)).first()[1]
+            assertEquals(null, slot.loopStartMs)
+            assertEquals(null, slot.loopEndMs)
+            assertTrue(slot.repeatOne)
+        } finally { engine.release(); file.delete() }
+    }
+
+    @Test fun repeatIsPerVideoFollowsSwapAndReallyLoops() = runBlocking(Dispatchers.Main) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val file = File(context.cacheDir, "quad-repeat.wav")
+        val samples = ByteArray(16000 * 2)
+        val header = ByteBuffer.allocate(44).order(ByteOrder.LITTLE_ENDIAN)
+        header.put("RIFF".toByteArray()).putInt(36 + samples.size).put("WAVEfmt ".toByteArray())
+            .putInt(16).putShort(1).putShort(1).putInt(16000).putInt(32000)
+            .putShort(2).putShort(16).put("data".toByteArray()).putInt(samples.size)
+        file.writeBytes(header.array() + samples)
+        fun video(id: Long) = VideoFile(id, Uri.fromFile(file).toString(), "test$id", "test", "test", 1000, file.length(), 0, 0, "audio/wav", 0, false, true)
+        val engine = QuadPlaybackEngine(context)
+        try {
+            engine.load(0, video(1)); engine.load(1, video(2))
+            engine.setSlotPlaying(0, false); engine.setSlotPlaying(1, false)
+            engine.setSlotRepeat(0, true)
+            val repeating = engine.controllerAt(0)!!.player
+            val looped = CompletableDeferred<Unit>()
+            repeating.addListener(object : Player.Listener {
+                override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) {
+                    if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) looped.complete(Unit)
+                }
+            })
+            withTimeout(10000) { while (!repeating.isCurrentMediaItemSeekable) delay(50) }
+            engine.swap(0, 1)
+            assertFalse(engine.slotStates(flowOf(-1)).first()[0].repeatOne)
+            assertTrue(engine.slotStates(flowOf(-1)).first()[1].repeatOne)
+            repeating.seekTo(800)
+            engine.setSlotPlaying(1, true)
+            withTimeout(10000) { looped.await() }
+            engine.setSlotRepeat(1, false)
+            assertEquals(Player.REPEAT_MODE_OFF, repeating.repeatMode)
+            engine.setSlotRepeat(1, true)
+            engine.load(1, video(3))
+            assertEquals(Player.REPEAT_MODE_OFF, engine.controllerAt(1)!!.player.repeatMode)
+        } finally { engine.release(); file.delete() }
+    }
+
     @Test fun linkedSeekMovesRealPlayersWithoutChangingPauseState() = runBlocking(Dispatchers.Main) {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val file = File(context.cacheDir, "quad-linked-seek.wav")
