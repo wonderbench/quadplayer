@@ -54,8 +54,6 @@ class QuadImportInterruptionTest {
             override val videos = flowOf(emptyList<VideoFile>())
             override val favorites = flowOf(emptyList<VideoFile>())
             override val folders = flowOf(emptyList<FolderInfo>())
-            override fun videosByFolder(folderPath: String) = videos
-            override fun search(query: String) = videos
             override suspend fun refreshVideos() = Unit
             override suspend fun getVideo(videoId: Long): VideoFile? = null
             override suspend fun toggleFavorite(videoId: Long) = Unit
@@ -74,7 +72,7 @@ class QuadImportInterruptionTest {
                 val factory = object : ViewModelProvider.Factory {
                     @Suppress("UNCHECKED_CAST")
                     override fun <T : ViewModel> create(modelClass: Class<T>): T = QuadPlayerViewModel(
-                        context, videos, DataStoreSettingsRepository(context), QuadSessionRepository(db.quadSessionDao()),
+                        context, videos, DataStoreSettingsRepository(context), QuadSessionRepository(db.quadSessionDao()), com.quadplayer.core.data.QuadPresetRepository(context),
                         DeviceCapabilityChecker(context), PerformanceMonitor(),
                     ) as T
                 }

@@ -27,18 +27,6 @@ interface VideoDao {
     )
     fun observeFolders(): Flow<List<FolderInfo>>
 
-    @Query("SELECT * FROM videos WHERE folder_path = :folderPath AND is_accessible = 1 ORDER BY display_name COLLATE NOCASE ASC")
-    fun observeByFolder(folderPath: String): Flow<List<VideoEntity>>
-
-    @Query(
-        """
-        SELECT * FROM videos
-        WHERE is_accessible = 1 AND display_name LIKE '%' || :query || '%'
-        ORDER BY display_name COLLATE NOCASE ASC
-        """,
-    )
-    fun search(query: String): Flow<List<VideoEntity>>
-
     @Query("SELECT * FROM videos WHERE id = :videoId LIMIT 1")
     suspend fun getById(videoId: Long): VideoEntity?
 

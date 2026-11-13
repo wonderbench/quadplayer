@@ -12,6 +12,8 @@ import com.quadplayer.core.model.VideoFile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import java.util.Locale
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,6 +22,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 enum class FileBrowserSortMode {
     NAME,
@@ -70,6 +73,7 @@ internal fun filterAndSortVideos(
     selectedFolderPath: String?,
     query: String,
     sortMode: FileBrowserSortMode,
+    locale: Locale = Locale.getDefault(),
 ): List<VideoFile> {
     val inScope = if (selectedFolderPath == null) {
         videos
@@ -86,23 +90,18 @@ internal fun filterAndSortVideos(
                 video.folderPath.contains(normalizedQuery, ignoreCase = true)
         }
     }
-    return when (sortMode) {
-        FileBrowserSortMode.NAME -> filtered.sortedWith(
-            compareBy<VideoFile> { it.displayName.lowercase() }
-                .thenByDescending { it.dateModified },
-        )
-
-        FileBrowserSortMode.DATE -> filtered.sortedByDescending { it.dateModified }
-        FileBrowserSortMode.DURATION -> filtered.sortedWith(
-            compareByDescending<VideoFile> { it.durationMs }
-                .thenBy { it.displayName.lowercase() },
-        )
-
-        FileBrowserSortMode.SIZE -> filtered.sortedWith(
-            compareByDescending<VideoFile> { it.sizeBytes }
-                .thenBy { it.displayName.lowercase() },
-        )
-    }
+    if (sortMode == FileBrowserSortMode.DATE) return filtered.sortedByDescending { it.dateModified }
+    val order = NaturalNameOrder(locale)
+    return filtered.map { it to order.key(it.displayName) }.sortedWith { a, b ->
+        val primary = when (sortMode) {
+            FileBrowserSortMode.DURATION -> b.first.durationMs.compareTo(a.first.durationMs)
+            FileBrowserSortMode.SIZE -> b.first.sizeBytes.compareTo(a.first.sizeBytes)
+            else -> 0
+        }
+        primary.takeIf { it != 0 }
+            ?: order.compare(a.second, b.second).takeIf { it != 0 }
+            ?: b.first.dateModified.compareTo(a.first.dateModified)
+    }.map { it.first }
 }
 
 @HiltViewModel
@@ -146,6 +145,7 @@ class FileBrowserViewModel @Inject constructor(
         queryInputs,
         sortMode,
     ) { repositoryInputs, queryInputs, currentSortMode ->
+        withContext(Dispatchers.Default) {
         val effectiveFolderPath = queryInputs.currentPath?.takeIf { path ->
             repositoryInputs.folders.any { it.path == path }
         }
@@ -156,6 +156,7 @@ class FileBrowserViewModel @Inject constructor(
             selectedFolderPath = effectiveFolderPath,
             query = queryInputs.currentVideoQuery,
             sortMode = currentSortMode,
+            locale = context.resources.configuration.locales[0] ?: Locale.getDefault(),
         )
         FileBrowserUiState(
             folders = visibleFolders,
@@ -169,6 +170,7 @@ class FileBrowserViewModel @Inject constructor(
             totalDurationMs = visibleVideos.sumOf { it.durationMs },
             totalSizeBytes = visibleVideos.sumOf { it.sizeBytes },
         )
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FileBrowserUiState())
 
     val openPlaylistEvents = openPlaylistRequests.asSharedFlow()

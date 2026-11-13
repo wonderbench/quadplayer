@@ -120,23 +120,6 @@ fun VideoEntity.toModel(): VideoFile = VideoFile(
     localPath = localPath,
 )
 
-fun VideoFile.toEntity(): VideoEntity = VideoEntity(
-    id = id,
-    uriString = uriString,
-    displayName = displayName,
-    folderPath = folderPath,
-    folderName = folderName,
-    durationMs = durationMs,
-    sizeBytes = sizeBytes,
-    width = width,
-    height = height,
-    mimeType = mimeType,
-    dateModified = dateModified,
-    isFavorite = isFavorite,
-    isManuallyAdded = isManuallyAdded,
-    localPath = localPath,
-)
-
 fun RecentPlaybackRow.toModel(): RecentPlayback = RecentPlayback(
     video = video.toModel(),
     lastPlayedAt = lastPlayedAt,
