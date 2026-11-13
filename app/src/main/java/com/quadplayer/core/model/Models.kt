@@ -7,7 +7,6 @@ enum class PlaybackState {
     BUFFERING,
     READY,
     PLAYING,
-    PAUSED,
     ENDED,
     ERROR,
 }
