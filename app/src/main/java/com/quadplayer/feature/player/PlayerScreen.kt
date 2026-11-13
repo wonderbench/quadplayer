@@ -619,7 +619,7 @@ private fun PlayerSurface(
     controlsTopInRoot: Float?,
 ) {
     var playerTopInRoot by remember { mutableFloatStateOf(Float.NaN) }
-    var playerHeightPx by remember { mutableIntStateOf(0) }
+    val subtitleInset = remember { arrayOfNulls<SubtitleControlsInset>(1) }
     val aspectRatio = when (state.playerState.aspectMode) {
         AspectMode.SIXTEEN_NINE -> 16f / 9f
         AspectMode.FOUR_THREE -> 4f / 3f
@@ -650,7 +650,6 @@ private fun PlayerSurface(
         AndroidView(
             modifier = playerModifier.onGloballyPositioned {
                 playerTopInRoot = it.positionInRoot().y
-                playerHeightPx = it.size.height
             },
             factory = { viewContext ->
                 PlayerView(viewContext).apply {
@@ -659,6 +658,7 @@ private fun PlayerSurface(
                     this.resizeMode = resizeMode
                     setShutterBackgroundColor(android.graphics.Color.BLACK)
                     setBackgroundColor(android.graphics.Color.BLACK)
+                    subtitleInset[0] = SubtitleControlsInset(this)
                 }
             },
             update = { playerView ->
@@ -666,9 +666,7 @@ private fun PlayerSurface(
                 playerView.keepScreenOn = state.playerState.isPlaying
                 playerView.resizeMode = resizeMode
                 playerView.applySubtitleStyle(state.settings.subtitleStyle)
-                playerView.subtitleView?.setBottomPaddingFraction(
-                    subtitleBottomPaddingFraction(playerTopInRoot, playerHeightPx, controlsTopInRoot),
-                )
+                subtitleInset[0]?.update(playerTopInRoot, controlsTopInRoot, state.settings.subtitleStyle.fontScale)
                 playerView.setShutterBackgroundColor(android.graphics.Color.BLACK)
                 playerView.setBackgroundColor(android.graphics.Color.BLACK)
             },
@@ -678,13 +676,6 @@ private fun PlayerSurface(
 
 @Composable
 internal fun playerNoticeText(@androidx.annotation.StringRes resourceId: Int): String = stringResource(resourceId)
-
-internal fun subtitleBottomPaddingFraction(playerTop: Float, playerHeight: Int, controlsTop: Float?): Float {
-    val base = 0.08f
-    if (playerHeight <= 0 || !playerTop.isFinite() || controlsTop == null || !controlsTop.isFinite()) return base
-    val overlap = (playerTop + playerHeight - controlsTop).coerceIn(0f, playerHeight.toFloat())
-    return (base + overlap / playerHeight).coerceAtMost(0.95f)
-}
 
 @Composable
 private fun GestureOverlay(
