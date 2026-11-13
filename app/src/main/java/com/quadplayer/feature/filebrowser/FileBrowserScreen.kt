@@ -45,7 +45,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -71,7 +72,8 @@ fun FileBrowserScreen(
     onOpenPlaylist: (Long) -> Unit,
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val compactHeight = LocalConfiguration.current.screenHeightDp < 480
+    val windowHeight = LocalWindowInfo.current.containerSize.height
+    val compactHeight = with(LocalDensity.current) { windowHeight.toDp() } < 480.dp
     var searchExpanded by rememberSaveable(compactHeight) { mutableStateOf(!compactHeight) }
     val permission = rememberMediaAccess(viewModel::refresh)
     var playlistTarget by remember { mutableStateOf<VideoFile?>(null) }

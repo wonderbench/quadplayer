@@ -24,7 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,6 +42,8 @@ import kotlinx.coroutines.withContext
 
 @Composable
 internal fun PersistedGrantManager(onDismiss: () -> Unit) {
+    val windowHeight = LocalWindowInfo.current.containerSize.height
+    val windowHeightDp = with(LocalDensity.current) { windowHeight.toDp() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var revision by remember { mutableIntStateOf(0) }
@@ -62,7 +65,7 @@ internal fun PersistedGrantManager(onDismiss: () -> Unit) {
     Dialog(onDismissRequest = { if (!busy) onDismiss() }) {
         Surface(shape = MaterialTheme.shapes.extraLarge, color = MaterialTheme.colorScheme.surface) {
             Column(
-                modifier = Modifier.fillMaxWidth().heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.82f).dp).padding(20.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(max = windowHeightDp * 0.82f).padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(stringResource(R.string.settings_grants_title), style = MaterialTheme.typography.headlineSmall)
@@ -91,7 +94,7 @@ internal fun PersistedGrantManager(onDismiss: () -> Unit) {
             onDismissRequest = { if (!busy) pending = null },
             title = { Text(stringResource(R.string.settings_grant_revoke_title)) },
             text = {
-                Column(Modifier.heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.45f).dp).verticalScroll(rememberScrollState()),
+                Column(Modifier.heightIn(max = windowHeightDp * 0.45f).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.settings_grant_revoke_confirmation, item.label))
                     Text(item.uri.toString(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
