@@ -43,7 +43,9 @@
     <string name="player_progress">播放进度</string>
     <string name="common_refresh">刷新</string>
     <string name="common_remove">移除</string>
-    <string name="common_video_count">%1$d 个视频</string>
+    <plurals name="common_video_count">
+        <item quantity="other">%1$d 个视频</item>
+    </plurals>
     <string name="common_folder_duration">%1$s · %2$s</string>
     <string name="common_empty">暂无内容</string>
     <string name="media_local_videos">本地视频</string>
@@ -94,7 +96,9 @@
     <string name="folders_search_folders">搜索文件夹</string>
     <string name="folders_search_videos">搜索当前文件夹视频</string>
     <string name="folders_current_path">路径：%1$s</string>
-    <string name="folders_current_view_summary">当前列表：%1$d 个视频 · 总时长 %2$s · 总大小 %3$s</string>
+    <plurals name="folders_current_view_summary">
+        <item quantity="other">当前列表：%1$d 个视频 · 总时长 %2$s · 总大小 %3$s</item>
+    </plurals>
     <string name="folders_sort_title">排序方式</string>
     <string name="folders_sort_name">名称</string>
     <string name="folders_sort_date">日期</string>
@@ -142,7 +146,9 @@
     <string name="settings_subtitle_black">黑色</string>
     <string name="settings_default_speed_desc">新打开视频时默认应用的播放速度。</string>
     <string name="settings_double_tap_seek">双击快进/快退</string>
-    <string name="settings_seek_seconds">%1$d 秒</string>
+    <plurals name="settings_seek_seconds">
+        <item quantity="other">%1$d 秒</item>
+    </plurals>
     <string name="settings_double_tap_seek_desc">双击左侧后退，双击右侧前进。</string>
     <string name="settings_reverse_double_tap_seek">反向双击方向</string>
     <string name="settings_reverse_double_tap_seek_desc">开启后双击左侧快进，双击右侧后退。</string>
@@ -191,7 +197,9 @@
     <string name="player_pip">画中画</string>
     <string name="player_switch_landscape">横屏</string>
     <string name="player_switch_portrait">竖屏</string>
-    <string name="player_seek_forward">快进 %1$d 秒</string>
+    <plurals name="player_seek_forward">
+        <item quantity="other">快进 %1$d 秒</item>
+    </plurals>
     <string name="media_partial_access">仅显示已授权视频 · 管理选择</string>
     <string name="player_previous">上一条</string>
     <string name="player_next">下一条</string>

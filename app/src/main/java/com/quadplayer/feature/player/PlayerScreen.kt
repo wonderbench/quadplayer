@@ -73,6 +73,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
@@ -588,7 +589,7 @@ private fun PlayerFloatingActions(
             )
             FloatingPlayerActionButton(
                 icon = Icons.Rounded.FastForward,
-                contentDescription = stringResource(R.string.player_seek_forward, seekSeconds),
+                contentDescription = pluralStringResource(R.plurals.player_seek_forward, seekSeconds, seekSeconds),
                 onClick = onSeekForward,
             )
         }

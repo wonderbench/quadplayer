@@ -44,49 +44,9 @@
             column="14"/>
     </issue>
 
-    <issue
-        id="PluralsCandidate"
-        message="Formatting %d followed by words (&quot;videos&quot;): This should probably be a plural rather than a string"
-        errorLine1="    &lt;string name=&quot;common_video_count&quot;>%1$d videos&lt;/string>"
-        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values-en/strings.xml"
-            line="20"
-            column="5"/>
-    </issue>
 
-    <issue
-        id="PluralsCandidate"
-        message="Formatting %d followed by words (&quot;videos&quot;): This should probably be a plural rather than a string"
-        errorLine1="    &lt;string name=&quot;folders_current_view_summary&quot;>%1$d videos · %2$s total · %3$s&lt;/string>"
-        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values-en/strings.xml"
-            line="60"
-            column="5"/>
-    </issue>
 
-    <issue
-        id="PluralsCandidate"
-        message="Formatting %d followed by words (&quot;seconds&quot;): This should probably be a plural rather than a string"
-        errorLine1="    &lt;string name=&quot;settings_seek_seconds&quot;>%1$d seconds&lt;/string>"
-        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values-en/strings.xml"
-            line="106"
-            column="5"/>
-    </issue>
 
-    <issue
-        id="PluralsCandidate"
-        message="Formatting %d followed by words (&quot;seconds&quot;): This should probably be a plural rather than a string"
-        errorLine1="    &lt;string name=&quot;player_seek_forward&quot;>Forward %1$d seconds&lt;/string>"
-        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/res/values-en/strings.xml"
-            line="138"
-            column="5"/>
-    </issue>
 
     <issue
         id="PluralsCandidate"
@@ -128,16 +88,6 @@
             file="src/main/res/mipmap-anydpi-v26"/>
     </issue>
 
-    <issue
-        id="KaptUsageInsteadOfKsp"
-        message="This library supports using KSP instead of kapt, which greatly improves performance. Learn more: https://developer.android.com/studio/build/migrate-to-ksp"
-        errorLine1="    kapt(libs.roomCompiler)"
-        errorLine2="    ~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="build.gradle.kts"
-            line="119"
-            column="5"/>
-    </issue>
 
     <issue
         id="UnusedResources"
