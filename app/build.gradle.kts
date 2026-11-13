@@ -5,16 +5,18 @@ import org.gradle.api.provider.ListProperty
 import org.gradle.api.provider.Property
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputFile
+import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import org.gradle.process.CommandLineArgumentProvider
 import javax.xml.parsers.DocumentBuilderFactory
 import org.w3c.dom.Element
 
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.kotlinAndroid)
-    alias(libs.plugins.kotlinKapt)
+    alias(libs.plugins.ksp)
     alias(libs.plugins.kotlinCompose)
     alias(libs.plugins.hilt)
 }
@@ -32,6 +34,13 @@ abstract class VerifyThirdPartyNotices : DefaultTask() {
                 "Missing: ${actual - recorded}; no longer resolved: ${recorded - actual}"
         }
     }
+}
+
+class RoomSchemaArgProvider(
+    @get:InputDirectory @get:PathSensitive(PathSensitivity.RELATIVE)
+    val schemaDir: File,
+) : CommandLineArgumentProvider {
+    override fun asArguments(): Iterable<String> = listOf("room.schemaLocation=${schemaDir.path}")
 }
 
 abstract class AboutDocumentation : DefaultTask() {
@@ -213,9 +222,8 @@ kotlin {
     }
 }
 
-kapt {
-    correctErrorTypes = true
-    arguments { arg("room.schemaLocation", "$projectDir/schemas") }
+ksp {
+    arg(RoomSchemaArgProvider(file("schemas")))
 }
 
 dependencies {
@@ -238,10 +246,10 @@ dependencies {
     implementation(libs.navigationCompose)
     implementation(libs.hiltNavigationCompose)
     implementation(libs.hiltAndroid)
-    kapt(libs.hiltCompiler)
+    ksp(libs.hiltCompiler)
     implementation(libs.roomRuntime)
     implementation(libs.roomKtx)
-    kapt(libs.roomCompiler)
+    ksp(libs.roomCompiler)
     implementation(libs.datastorePreferences)
     implementation(libs.coroutinesAndroid)
     implementation(libs.media3Exoplayer)
