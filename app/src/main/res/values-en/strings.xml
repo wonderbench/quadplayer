@@ -66,6 +66,11 @@
     <string name="import_remove_action">Remove from library</string>
     <string name="import_remove_confirmation">Hide “%1$s” from the library? The video file, history and playlists will be kept. It may reappear if imported again or restored in a quad session.</string>
     <string name="import_remove_failed">Could not remove this video. Refresh and try again.</string>
+    <string name="import_remove_and_revoke">Remove and release access…</string>
+    <string name="import_revoke_title">Release file access?</string>
+    <string name="import_revoke_confirmation">Remove “%1$s” and release its persistent read access? Current playback, quad sessions, presets or other uses of the same file may lose access. The file itself will not be deleted; you can select it and grant access again.</string>
+    <string name="import_revoke_action">Remove and release access</string>
+    <string name="import_remove_grant_retained">The video was removed from the library, but access was not released. The file may have been selected again, or the system rejected the request.</string>
     <string name="external_video_open_failed">Could not open this video. Check that the file is still accessible.</string>
     <string name="home_my_playlists">My playlists</string>
     <string name="home_new_playlist">New</string>

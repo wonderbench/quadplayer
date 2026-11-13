@@ -2,7 +2,7 @@
 
 package com.quadplayer.feature.quadplayer
 
-import android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION
+import com.quadplayer.core.data.DocumentAccessGrants
 import android.content.pm.ActivityInfo
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -158,9 +158,7 @@ fun QuadPlayerScreen(
         val targetSlot = pendingSlot
         pendingSlot = -1
         if (uri != null && targetSlot >= 0) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(uri, FLAG_GRANT_READ_URI_PERMISSION)
-            }
+            DocumentAccessGrants.retainRead(context.contentResolver, uri)
             viewModel.addVideo(targetSlot, uri)
             progressVisibleSlot = targetSlot
             progressInteractionVersion += 1

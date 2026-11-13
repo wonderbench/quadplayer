@@ -19,6 +19,14 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 import android.util.Log
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import com.quadplayer.R
+import com.quadplayer.core.data.DocumentAccessGrants
+import com.quadplayer.core.data.DocumentGrantToken
+import com.quadplayer.core.data.GrantReleaseResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class HomeUiState(
     val isRefreshing: Boolean = false,
@@ -31,6 +39,7 @@ data class HomeUiState(
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val videoRepository: VideoRepository,
     private val historyRepository: HistoryRepository,
     private val historyQueue: HistoryWriteQueue,
@@ -40,7 +49,7 @@ class HomeViewModel @Inject constructor(
     private val query = MutableStateFlow("")
     private val refreshing = MutableStateFlow(false)
     val historyError = MutableStateFlow(false)
-    val removalError = MutableStateFlow(false)
+    val removalError = MutableStateFlow<Int?>(null)
     private var refreshCount = 0
 
     private val libraryState = combine(
@@ -106,16 +115,23 @@ class HomeViewModel @Inject constructor(
     fun deleteHistory(videoId: Long) = changeHistory { historyQueue.delete(videoId) }
     fun clearHistory() = changeHistory { historyQueue.clear() }
     fun dismissHistoryError() { historyError.value = false }
-    fun dismissRemovalError() { removalError.value = false }
+    fun dismissRemovalError() { removalError.value = null }
 
-    fun hideManualVideo(videoId: Long) {
+    internal fun hideManualVideo(videoId: Long, uriString: String, revoke: DocumentGrantToken? = null) {
         viewModelScope.launch {
+            var hidden = false
             try {
-                if (!videoRepository.hideManualVideo(videoId)) removalError.value = true
+                hidden = videoRepository.hideManualVideo(videoId, uriString, revoke?.revision)
+                if (!hidden) removalError.value = R.string.import_remove_failed
+                else if (revoke != null && (revoke.uri != uriString || withContext(Dispatchers.IO) {
+                        DocumentAccessGrants.releaseRead(context.contentResolver, revoke)
+                    } != GrantReleaseResult.RELEASED)) {
+                    removalError.value = R.string.import_remove_grant_retained
+                }
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (failure: Exception) {
                 Log.w("HomeViewModel", "Unable to remove imported video", failure)
-                removalError.value = true
+                removalError.value = if (hidden && revoke != null) R.string.import_remove_grant_retained else R.string.import_remove_failed
             }
         }
     }

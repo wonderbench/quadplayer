@@ -52,7 +52,7 @@ class QuadPresetRestoreTest {
             override val videos = flowOf(emptyList<VideoFile>())
             override val favorites = flowOf(emptyList<VideoFile>())
             override val folders = flowOf(emptyList<FolderInfo>())
-            override suspend fun hideManualVideo(videoId: Long) = false
+            override suspend fun hideManualVideo(videoId: Long, uriString: String, expectedGrantRevision: Long?) = false
             override suspend fun refreshVideos() = Unit
             override suspend fun getVideo(videoId: Long): VideoFile? = null
             override suspend fun toggleFavorite(videoId: Long) = Unit
@@ -101,7 +101,7 @@ class QuadPresetRestoreTest {
             override val videos = flowOf(emptyList<VideoFile>())
             override val favorites = flowOf(emptyList<VideoFile>())
             override val folders = flowOf(emptyList<FolderInfo>())
-            override suspend fun hideManualVideo(videoId: Long) = false
+            override suspend fun hideManualVideo(videoId: Long, uriString: String, expectedGrantRevision: Long?) = false
             override suspend fun refreshVideos() = Unit
             override suspend fun getVideo(videoId: Long): VideoFile? = null
             override suspend fun toggleFavorite(videoId: Long) = Unit
