@@ -72,6 +72,17 @@ class DatabaseMigrationTest {
             val saved = SavedQuadSession(listOf(SavedQuadSlot("content://video/1", 1234, 1.5f, false), null, null, null), LayoutMode.FOCUS_GRID, 0, 0)
             sessions.save(saved)
             assertEquals(saved, sessions.read())
+            val history = db.playHistoryDao()
+            history.upsert(PlayHistoryEntity(videoId = 2, lastPositionMs = 25, lastPlayedAt = 2))
+            history.deleteByVideoId(1)
+            assertEquals(null, history.getByVideoId(1))
+            assertEquals(25L, history.getByVideoId(2)?.lastPositionMs)
+            dao.markUnavailable(listOf(2))
+            assertTrue(history.observeRecent(100).first().isEmpty())
+            history.clear()
+            dao.upsert(dao.getById(2)!!.copy(isAccessible = true))
+            assertEquals(null, history.getByVideoId(2))
+            assertTrue(dao.getById(1)!!.isFavorite)
         } finally { db.close() }
     }
 }

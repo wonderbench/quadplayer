@@ -3,6 +3,7 @@ package com.quadplayer.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quadplayer.core.data.HistoryRepository
+import com.quadplayer.core.data.HistoryWriteQueue
 import com.quadplayer.core.data.PlaylistRepository
 import com.quadplayer.core.data.VideoRepository
 import com.quadplayer.core.model.PlaylistSummary
@@ -32,11 +33,13 @@ data class HomeUiState(
 class HomeViewModel @Inject constructor(
     private val videoRepository: VideoRepository,
     private val historyRepository: HistoryRepository,
+    private val historyQueue: HistoryWriteQueue,
     private val playlistRepository: PlaylistRepository,
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
     private val refreshing = MutableStateFlow(false)
+    val historyError = MutableStateFlow(false)
     private var refreshCount = 0
 
     private val libraryState = combine(
@@ -96,6 +99,20 @@ class HomeViewModel @Inject constructor(
     fun toggleFavorite(videoId: Long) {
         viewModelScope.launch {
             videoRepository.toggleFavorite(videoId)
+        }
+    }
+
+    fun deleteHistory(videoId: Long) = changeHistory { historyQueue.delete(videoId) }
+    fun clearHistory() = changeHistory { historyQueue.clear() }
+    fun dismissHistoryError() { historyError.value = false }
+
+    private fun changeHistory(action: suspend () -> Unit) {
+        viewModelScope.launch {
+            try { action() } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                Log.w("HomeViewModel", "Unable to update history", failure)
+                historyError.value = true
+            }
         }
     }
 

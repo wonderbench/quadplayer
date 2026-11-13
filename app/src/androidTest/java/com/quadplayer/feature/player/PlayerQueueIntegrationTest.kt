@@ -65,6 +65,8 @@ class PlayerQueueIntegrationTest {
         val positions = ConcurrentHashMap<Long, Long>()
         val history = object : HistoryRepository {
             override fun observeRecent(limit: Int): Flow<List<RecentPlayback>> = flowOf(emptyList())
+            override suspend fun deleteHistory(videoId: Long) { positions.remove(videoId) }
+            override suspend fun clearHistory() { positions.clear() }
             override suspend fun getResumePosition(videoId: Long) = positions[videoId] ?: 0L
             override suspend fun recordPlayback(videoId: Long, positionMs: Long) { positions[videoId] = positionMs }
         }

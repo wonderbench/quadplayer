@@ -22,6 +22,8 @@ class HistoryWriteQueue internal constructor(
     private sealed interface Operation {
         data class Save(val videoId: Long, val position: Long) : Operation
         data class Read(val videoId: Long, val result: CompletableDeferred<Long>) : Operation
+        data class Delete(val videoId: Long, val result: CompletableDeferred<Unit>) : Operation
+        data class Clear(val result: CompletableDeferred<Unit>) : Operation
     }
     private val operations = Channel<Operation>(Channel.UNLIMITED)
 
@@ -36,13 +38,29 @@ class HistoryWriteQueue internal constructor(
                             repository.recordPlayback(operation.videoId, operation.position)
                         }
                         is Operation.Read -> operation.result.complete(latest[operation.videoId] ?: repository.getResumePosition(operation.videoId))
+                        is Operation.Delete -> {
+                            repository.deleteHistory(operation.videoId)
+                            latest.remove(operation.videoId)
+                            operation.result.complete(Unit)
+                        }
+                        is Operation.Clear -> {
+                            repository.clearHistory()
+                            latest.clear()
+                            operation.result.complete(Unit)
+                        }
                     }
                 } catch (cancelled: CancellationException) {
                     if (operation is Operation.Read) operation.result.cancel(cancelled)
+                    if (operation is Operation.Delete) operation.result.cancel(cancelled)
+                    if (operation is Operation.Clear) operation.result.cancel(cancelled)
                     throw cancelled
                 } catch (failure: Exception) {
-                    if (operation is Operation.Read) operation.result.completeExceptionally(failure)
-                    else Log.w("HistoryWriteQueue", "Unable to save playback position", failure)
+                    when (operation) {
+                        is Operation.Read -> operation.result.completeExceptionally(failure)
+                        is Operation.Delete -> operation.result.completeExceptionally(failure)
+                        is Operation.Clear -> operation.result.completeExceptionally(failure)
+                        is Operation.Save -> Log.w("HistoryWriteQueue", "Unable to save playback position", failure)
+                    }
                 }
             }
         }
@@ -56,6 +74,18 @@ class HistoryWriteQueue internal constructor(
         val result = CompletableDeferred<Long>()
         operations.send(Operation.Read(videoId, result))
         return result.await()
+    }
+
+    suspend fun delete(videoId: Long) {
+        val result = CompletableDeferred<Unit>()
+        operations.send(Operation.Delete(videoId, result))
+        result.await()
+    }
+
+    suspend fun clear() {
+        val result = CompletableDeferred<Unit>()
+        operations.send(Operation.Clear(result))
+        result.await()
     }
 }
 
