@@ -1,8 +1,9 @@
 package com.quadplayer.core.database
 
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
 import androidx.room.Room
+import androidx.room.testing.MigrationTestHelper
+import androidx.test.platform.app.InstrumentationRegistry
 import com.quadplayer.core.data.DefaultPlaylistRepository
 import com.quadplayer.core.data.QuadSessionRepository
 import com.quadplayer.core.data.SavedQuadSession
@@ -16,6 +17,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertFalse
 import org.junit.Test
+import org.junit.Rule
 import org.junit.runner.RunWith
 import androidx.test.ext.junit.runners.AndroidJUnit4
 
@@ -23,26 +25,26 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 class DatabaseMigrationTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private val name = "migration-test.db"
+    @get:Rule val helper = MigrationTestHelper(InstrumentationRegistry.getInstrumentation(), QuadPlayerDatabase::class.java)
     @After fun cleanUp() { context.deleteDatabase(name) }
+
+    @Test fun intermediateSchemasMigrateToCurrentVersion() {
+        for (version in 2..3) {
+            context.deleteDatabase(name)
+            helper.createDatabase(name, version).close()
+            helper.runMigrationsAndValidate(
+                name, 5, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5
+            ).close()
+        }
+    }
 
     @Test fun migrationKeepsPreviouslyRemovedManualVideosHidden() = runBlocking {
         context.deleteDatabase(name)
-        val path = context.getDatabasePath(name)
-        path.parentFile?.mkdirs()
-        SQLiteDatabase.openOrCreateDatabase(path, null).use { db ->
-            db.execSQL("CREATE TABLE videos (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, uri_string TEXT NOT NULL, display_name TEXT NOT NULL, folder_path TEXT NOT NULL, folder_name TEXT NOT NULL, duration_ms INTEGER NOT NULL, size_bytes INTEGER NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, mime_type TEXT NOT NULL, date_modified INTEGER NOT NULL, is_favorite INTEGER NOT NULL, is_manually_added INTEGER NOT NULL, local_path TEXT, is_accessible INTEGER NOT NULL DEFAULT 1)")
-            db.execSQL("CREATE UNIQUE INDEX index_videos_uri_string ON videos (uri_string)")
-            db.execSQL("CREATE TABLE play_history (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, video_id INTEGER NOT NULL, last_position_ms INTEGER NOT NULL, last_played_at INTEGER NOT NULL, FOREIGN KEY(video_id) REFERENCES videos(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
-            db.execSQL("CREATE UNIQUE INDEX index_play_history_video_id ON play_history (video_id)")
-            db.execSQL("CREATE TABLE playlists (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)")
-            db.execSQL("CREATE TABLE playlist_videos (playlist_id INTEGER NOT NULL, video_id INTEGER NOT NULL, sort_order INTEGER NOT NULL, PRIMARY KEY(playlist_id, video_id), FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON UPDATE NO ACTION ON DELETE CASCADE, FOREIGN KEY(video_id) REFERENCES videos(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
-            db.execSQL("CREATE INDEX index_playlist_videos_playlist_id ON playlist_videos (playlist_id)")
-            db.execSQL("CREATE INDEX index_playlist_videos_video_id ON playlist_videos (video_id)")
-            db.execSQL("CREATE TABLE quad_session (id INTEGER NOT NULL PRIMARY KEY, payload TEXT NOT NULL)")
+        helper.createDatabase(name, 4).use { db ->
             db.execSQL("INSERT INTO videos VALUES (1,'content://video/manual','v','imported','imported',100,100,1,1,'video/mp4',1,1,1,NULL,0)")
             db.execSQL("INSERT INTO play_history VALUES (1,1,42,1)")
-            db.version = 4
         }
+        helper.runMigrationsAndValidate(name, 5, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).close()
         val db = Room.databaseBuilder(context, QuadPlayerDatabase::class.java, name)
             .allowMainThreadQueries().addMigrations(MIGRATION_4_5).build()
         try {
@@ -58,25 +60,15 @@ class DatabaseMigrationTest {
 
     @Test fun migrationRetainsReferencesWhenAccessIsRemovedAndRestored() = runBlocking {
         context.deleteDatabase(name)
-        val path = context.getDatabasePath(name)
-        path.parentFile?.mkdirs()
-        SQLiteDatabase.openOrCreateDatabase(path, null).use { db ->
-            db.execSQL("CREATE TABLE IF NOT EXISTS videos (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, uri_string TEXT NOT NULL, display_name TEXT NOT NULL, folder_path TEXT NOT NULL, folder_name TEXT NOT NULL, duration_ms INTEGER NOT NULL, size_bytes INTEGER NOT NULL, width INTEGER NOT NULL, height INTEGER NOT NULL, mime_type TEXT NOT NULL, date_modified INTEGER NOT NULL, is_favorite INTEGER NOT NULL, is_manually_added INTEGER NOT NULL, local_path TEXT)")
-            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_videos_uri_string ON videos (uri_string)")
-            db.execSQL("CREATE TABLE IF NOT EXISTS play_history (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, video_id INTEGER NOT NULL, last_position_ms INTEGER NOT NULL, last_played_at INTEGER NOT NULL, FOREIGN KEY(video_id) REFERENCES videos(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
-            db.execSQL("CREATE INDEX IF NOT EXISTS index_play_history_video_id ON play_history (video_id)")
-            db.execSQL("CREATE TABLE IF NOT EXISTS playlists (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)")
-            db.execSQL("CREATE TABLE IF NOT EXISTS playlist_videos (playlist_id INTEGER NOT NULL, video_id INTEGER NOT NULL, sort_order INTEGER NOT NULL, PRIMARY KEY(playlist_id, video_id), FOREIGN KEY(playlist_id) REFERENCES playlists(id) ON UPDATE NO ACTION ON DELETE CASCADE, FOREIGN KEY(video_id) REFERENCES videos(id) ON UPDATE NO ACTION ON DELETE CASCADE)")
-            db.execSQL("CREATE INDEX IF NOT EXISTS index_playlist_videos_playlist_id ON playlist_videos (playlist_id)")
-            db.execSQL("CREATE INDEX IF NOT EXISTS index_playlist_videos_video_id ON playlist_videos (video_id)")
+        helper.createDatabase(name, 1).use { db ->
             db.execSQL("INSERT INTO videos VALUES (1,'content://video/1','v','folder','folder',100,100,1,1,'video/mp4',1,1,0,NULL)")
             db.execSQL("INSERT INTO play_history VALUES (1,1,42,1)")
             db.execSQL("INSERT INTO play_history VALUES (2,1,99,2)")
             db.execSQL("INSERT INTO play_history VALUES (3,1,77,2)")
             db.execSQL("INSERT INTO playlists VALUES (1,'list',1,1)")
             db.execSQL("INSERT INTO playlist_videos VALUES (1,1,0)")
-            db.version = 1
         }
+        helper.runMigrationsAndValidate(name, 5, true, MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).close()
         val db = Room.databaseBuilder(context, QuadPlayerDatabase::class.java, name)
             .allowMainThreadQueries().addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5).build()
         try {
