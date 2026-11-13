@@ -45,6 +45,7 @@ import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.AlertDialog
 import com.quadplayer.ui.theme.DepthChip
+import com.quadplayer.core.ui.applySubtitleStyle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import com.quadplayer.ui.theme.RoundIconButton
@@ -606,6 +607,7 @@ private fun PlayerSurface(
                 playerView.player = viewModel.controller.player
                 playerView.keepScreenOn = state.playerState.isPlaying
                 playerView.resizeMode = resizeMode
+                playerView.applySubtitleStyle(state.settings.subtitleStyle)
                 playerView.setShutterBackgroundColor(android.graphics.Color.BLACK)
                 playerView.setBackgroundColor(android.graphics.Color.BLACK)
             },

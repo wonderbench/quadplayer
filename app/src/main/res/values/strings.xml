@@ -92,6 +92,16 @@
     <string name="settings_decoder_software">软解码</string>
     <string name="settings_decoder_desc">自动模式优先使用硬解码，软解码可提升兼容性。</string>
     <string name="settings_default_speed">默认倍速</string>
+    <string name="settings_subtitles">字幕样式</string>
+    <string name="settings_subtitles_desc">调整字幕大小、颜色和背景；自定义后覆盖字幕文件自带样式。</string>
+    <string name="settings_subtitle_size">字号</string>
+    <string name="settings_subtitle_color">文字颜色</string>
+    <string name="settings_subtitle_background">背景</string>
+    <string name="settings_subtitle_white">白色</string>
+    <string name="settings_subtitle_yellow">黄色</string>
+    <string name="settings_subtitle_transparent">透明</string>
+    <string name="settings_subtitle_translucent">半透明</string>
+    <string name="settings_subtitle_black">黑色</string>
     <string name="settings_default_speed_desc">新打开视频时默认应用的播放速度。</string>
     <string name="settings_double_tap_seek">双击快进/快退</string>
     <string name="settings_seek_seconds">%1$d 秒</string>

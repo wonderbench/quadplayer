@@ -27,6 +27,8 @@ import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.AlertDialog
 import com.quadplayer.ui.theme.DepthChip
 import com.quadplayer.ui.theme.DepthChoiceChip
+import com.quadplayer.core.ui.applySubtitleStyle
+import com.quadplayer.core.model.SubtitleStyle
 import androidx.compose.material3.Icon
 import com.quadplayer.ui.theme.RoundIconButton
 import androidx.compose.material3.MaterialTheme
@@ -439,7 +441,7 @@ private fun QuadGrid(
 ) {
     @Composable
     fun Slot(index: Int, slotModifier: Modifier, audioTopInset: Dp = 4.dp, bottomInset: Dp = 0.dp) {
-        QuadSlotContent(slotModifier, state.slots[index], viewModel, onAddVideo, onOpenMenu,
+        QuadSlotContent(slotModifier, state.slots[index], state.settings.subtitleStyle, viewModel, onAddVideo, onOpenMenu,
             onSwitchAudio, onShowProgress, onSeek, visibleProgressSlot == index, audioTopInset, bottomInset)
     }
     when (state.layoutMode) {
@@ -470,6 +472,7 @@ private fun QuadGrid(
 private fun QuadSlotContent(
     modifier: Modifier,
     slot: QuadSlotUiState,
+    subtitleStyle: SubtitleStyle,
     viewModel: QuadPlayerViewModel,
     onAddVideo: (Int) -> Unit,
     onOpenMenu: (Int) -> Unit,
@@ -536,6 +539,7 @@ private fun QuadSlotContent(
                     update = { playerView ->
                         playerView.player = viewModel.controllerAt(slot.index)?.player
                         playerView.keepScreenOn = slot.isPlaying
+                        playerView.applySubtitleStyle(subtitleStyle)
                         playerView.setShutterBackgroundColor(android.graphics.Color.BLACK)
                         playerView.setBackgroundColor(android.graphics.Color.BLACK)
                     },
