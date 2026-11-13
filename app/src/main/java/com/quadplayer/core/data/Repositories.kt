@@ -37,6 +37,7 @@ interface VideoRepository {
     suspend fun importVideo(uri: Uri): VideoFile?
     suspend fun getVideo(videoId: Long): VideoFile?
     suspend fun toggleFavorite(videoId: Long)
+    suspend fun hideManualVideo(videoId: Long): Boolean
 }
 
 interface HistoryRepository {
@@ -122,6 +123,10 @@ class DefaultVideoRepository @Inject constructor(
     override suspend fun toggleFavorite(videoId: Long) = withContext(Dispatchers.IO) {
         val current = videoDao.getById(videoId) ?: return@withContext
         videoDao.setFavorite(videoId, !current.isFavorite)
+    }
+
+    override suspend fun hideManualVideo(videoId: Long): Boolean = withContext(Dispatchers.IO) {
+        videoDao.hideManualVideo(videoId) == 1
     }
 }
 

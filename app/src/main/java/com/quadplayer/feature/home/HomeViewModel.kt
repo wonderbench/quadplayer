@@ -40,6 +40,7 @@ class HomeViewModel @Inject constructor(
     private val query = MutableStateFlow("")
     private val refreshing = MutableStateFlow(false)
     val historyError = MutableStateFlow(false)
+    val removalError = MutableStateFlow(false)
     private var refreshCount = 0
 
     private val libraryState = combine(
@@ -105,6 +106,19 @@ class HomeViewModel @Inject constructor(
     fun deleteHistory(videoId: Long) = changeHistory { historyQueue.delete(videoId) }
     fun clearHistory() = changeHistory { historyQueue.clear() }
     fun dismissHistoryError() { historyError.value = false }
+    fun dismissRemovalError() { removalError.value = false }
+
+    fun hideManualVideo(videoId: Long) {
+        viewModelScope.launch {
+            try {
+                if (!videoRepository.hideManualVideo(videoId)) removalError.value = true
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                Log.w("HomeViewModel", "Unable to remove imported video", failure)
+                removalError.value = true
+            }
+        }
+    }
 
     private fun changeHistory(action: suspend () -> Unit) {
         viewModelScope.launch {

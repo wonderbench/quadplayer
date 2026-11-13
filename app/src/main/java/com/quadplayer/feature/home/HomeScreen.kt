@@ -76,10 +76,12 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val historyError by viewModel.historyError.collectAsStateWithLifecycle()
+    val removalError by viewModel.removalError.collectAsStateWithLifecycle()
     val compactHeight = LocalConfiguration.current.screenHeightDp < 480
     val permission = rememberMediaAccess(viewModel::refresh)
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
     var playlistTarget by remember { mutableStateOf<VideoFile?>(null) }
+    var removalTarget by remember { mutableStateOf<VideoFile?>(null) }
 
 
 
@@ -180,6 +182,7 @@ fun HomeScreen(
                 onOpenVideo = onOpenVideo,
                 onToggleFavorite = viewModel::toggleFavorite,
                 onAddToPlaylist = { playlistTarget = it },
+                onRemove = { removalTarget = it },
             )
 
             1 -> RecentList(
@@ -196,6 +199,7 @@ fun HomeScreen(
                 onOpenVideo = onOpenVideo,
                 onToggleFavorite = viewModel::toggleFavorite,
                 onAddToPlaylist = { playlistTarget = it },
+                onRemove = { removalTarget = it },
             )
 
             else -> PlaylistList(
@@ -226,15 +230,32 @@ fun HomeScreen(
             confirmButton = { TextButton(onClick = viewModel::dismissHistoryError) { Text(stringResource(R.string.common_close)) } },
         )
     }
+    removalTarget?.let { target ->
+        AlertDialog(
+            onDismissRequest = { removalTarget = null },
+            title = { Text(stringResource(R.string.import_remove_title)) },
+            text = { Text(stringResource(R.string.import_remove_confirmation, target.displayName)) },
+            confirmButton = { TextButton(onClick = { viewModel.hideManualVideo(target.id); removalTarget = null }) { Text(stringResource(R.string.import_remove_action)) } },
+            dismissButton = { TextButton(onClick = { removalTarget = null }) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
+    if (removalError) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissRemovalError,
+            text = { Text(stringResource(R.string.import_remove_failed)) },
+            confirmButton = { TextButton(onClick = viewModel::dismissRemovalError) { Text(stringResource(R.string.common_close)) } },
+        )
+    }
 }
 
 @Composable
-private fun VideoList(
+internal fun VideoList(
     videos: List<VideoFile>,
     emptyText: String,
     onOpenVideo: (Long) -> Unit,
     onToggleFavorite: (Long) -> Unit,
     onAddToPlaylist: (VideoFile) -> Unit,
+    onRemove: (VideoFile) -> Unit,
 ) {
     if (videos.isEmpty()) {
         EmptyStateText(emptyText)
@@ -277,6 +298,11 @@ private fun VideoList(
                         }
                         TextButton(onClick = { onAddToPlaylist(video) }) {
                             Text(stringResource(R.string.home_add_to_playlist))
+                        }
+                        if (video.isManuallyAdded) {
+                            RoundIconButton(onClick = { onRemove(video) }) {
+                                Icon(Icons.Rounded.DeleteOutline, contentDescription = stringResource(R.string.import_remove_action))
+                            }
                         }
                     }
                 }

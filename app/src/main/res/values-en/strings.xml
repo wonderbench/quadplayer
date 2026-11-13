@@ -62,6 +62,10 @@
     <string name="history_clear">Clear history</string>
     <string name="history_clear_confirmation">Clear all history and saved positions? Video files will not be deleted.</string>
     <string name="history_change_failed">Could not update history. Try again.</string>
+    <string name="import_remove_title">Remove imported video</string>
+    <string name="import_remove_action">Remove from library</string>
+    <string name="import_remove_confirmation">Hide “%1$s” from the library? The video file, history and playlists will be kept. It may reappear if imported again or restored in a quad session.</string>
+    <string name="import_remove_failed">Could not remove this video. Refresh and try again.</string>
     <string name="external_video_open_failed">Could not open this video. Check that the file is still accessible.</string>
     <string name="home_my_playlists">My playlists</string>
     <string name="home_new_playlist">New</string>
