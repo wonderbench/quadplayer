@@ -25,6 +25,11 @@
     <string name="quad_sync_not_ready">A video cannot seek yet or has an A–B loop. Try again or clear the loop.</string>
     <string name="quad_sync_incomplete">Some videos could not align or are shorter than the audio source. Check them and try again.</string>
     <string name="app_name">QuadPlayer</string>
+    <string name="search_panel_open">Show search and filters</string>
+    <string name="search_panel_close">Hide search and filters</string>
+    <string name="search_filter_active">Search or sort changed</string>
+    <string name="search_filter_inactive">Default search and sort</string>
+    <string name="video_more_actions">More actions for %1$s</string>
     <string name="nav_home">Home</string>
     <string name="nav_folders">Folders</string>
     <string name="nav_quad">Quad</string>
@@ -41,7 +46,10 @@
     <string name="player_progress">Playback progress</string>
     <string name="common_refresh">Refresh</string>
     <string name="common_remove">Remove</string>
-    <string name="common_video_count">%1$d videos</string>
+    <plurals name="common_video_count">
+        <item quantity="one">%1$d video</item>
+        <item quantity="other">%1$d videos</item>
+    </plurals>
     <string name="common_folder_duration">%1$s · %2$s</string>
     <string name="common_empty">Nothing here yet</string>
     <string name="media_local_videos">Local videos</string>
@@ -62,6 +70,15 @@
     <string name="history_clear">Clear history</string>
     <string name="history_clear_confirmation">Clear all history and saved positions? Video files will not be deleted.</string>
     <string name="history_change_failed">Could not update history. Try again.</string>
+    <string name="import_remove_title">Remove imported video</string>
+    <string name="import_remove_action">Remove from library</string>
+    <string name="import_remove_confirmation">Hide “%1$s” from the library? The video file, history and playlists will be kept. It may reappear if imported again or restored in a quad session.</string>
+    <string name="import_remove_failed">Could not remove this video. Refresh and try again.</string>
+    <string name="import_remove_and_revoke">Remove and release access…</string>
+    <string name="import_revoke_title">Release file access?</string>
+    <string name="import_revoke_confirmation">Remove “%1$s” and release its persistent read access? Current playback, quad sessions, presets or other uses of the same file may lose access. The file itself will not be deleted; you can select it and grant access again.</string>
+    <string name="import_revoke_action">Remove and release access</string>
+    <string name="import_remove_grant_retained">The video was removed from the library, but access was not released. The file may have been selected again, or the system rejected the request.</string>
     <string name="external_video_open_failed">Could not open this video. Check that the file is still accessible.</string>
     <string name="home_my_playlists">My playlists</string>
     <string name="home_new_playlist">New</string>
@@ -81,7 +98,10 @@
     <string name="folders_search_folders">Search folders</string>
     <string name="folders_search_videos">Search this folder</string>
     <string name="folders_current_path">Path: %1$s</string>
-    <string name="folders_current_view_summary">%1$d videos · %2$s total · %3$s</string>
+    <plurals name="folders_current_view_summary">
+        <item quantity="one">%1$d video · %2$s total · %3$s</item>
+        <item quantity="other">%1$d videos · %2$s total · %3$s</item>
+    </plurals>
     <string name="folders_sort_title">Sort by</string>
     <string name="folders_sort_name">Name</string>
     <string name="folders_sort_date">Date</string>
@@ -127,7 +147,10 @@
     <string name="settings_subtitle_black">Black</string>
     <string name="settings_default_speed_desc">Playback speed for newly opened videos.</string>
     <string name="settings_double_tap_seek">Double-tap to seek</string>
-    <string name="settings_seek_seconds">%1$d seconds</string>
+    <plurals name="settings_seek_seconds">
+        <item quantity="one">%1$d second</item>
+        <item quantity="other">%1$d seconds</item>
+    </plurals>
     <string name="settings_double_tap_seek_desc">Double-tap left to rewind or right to skip forward.</string>
     <string name="settings_reverse_double_tap_seek">Reverse double-tap direction</string>
     <string name="settings_reverse_double_tap_seek_desc">Double-tap left to skip forward or right to rewind.</string>
@@ -139,6 +162,22 @@
     <string name="settings_crossfade_audio_desc">Use a short fade when changing the quad audio source.</string>
     <string name="settings_about_software">About</string>
     <string name="settings_about_software_desc">Learn about the app, requirements and controls.</string>
+    <string name="settings_open_source_licenses">Third-party licenses</string>
+    <string name="settings_open_source_licenses_desc">View components, fonts and their license notices.</string>
+    <string name="settings_licenses_loading">Loading license notices…</string>
+    <string name="settings_licenses_failed">Could not load license notices.</string>
+    <string name="settings_grants_title">Manage file access</string>
+    <string name="settings_grants_entry_desc">View and release access retained through the file picker.</string>
+    <string name="settings_grants_desc">These are retained file read grants, including files no longer shown in the library. Check the consequences before releasing access.</string>
+    <string name="settings_grants_loading">Loading file access…</string>
+    <string name="settings_grants_refresh">Refresh</string>
+    <string name="settings_grants_empty">No retained file read access.</string>
+    <string name="settings_grants_load_failed">Could not load file access. Try again later.</string>
+    <string name="settings_grant_revoke_title">Release file access?</string>
+    <string name="settings_grant_revoke_confirmation">Release persistent read access to “%1$s”? Current playback, quad sessions, presets, audio tracks or subtitles may lose access. The file will not be deleted; you can select it and grant access again.</string>
+    <string name="settings_grant_revoke_action">Release access</string>
+    <string name="settings_grant_changed">The file was selected again, so access was not released. Refresh and try again.</string>
+    <string name="settings_grant_release_failed">The system could not release access. Try again later.</string>
     <string name="settings_about_software_subtitle">QuadPlayer features and guide</string>
     <string name="player_title">Player</string>
     <string name="player_more">More playback options</string>
@@ -159,7 +198,10 @@
     <string name="player_pip">Picture-in-picture</string>
     <string name="player_switch_landscape">Landscape</string>
     <string name="player_switch_portrait">Portrait</string>
-    <string name="player_seek_forward">Forward %1$d seconds</string>
+    <plurals name="player_seek_forward">
+        <item quantity="one">Forward %1$d second</item>
+        <item quantity="other">Forward %1$d seconds</item>
+    </plurals>
     <string name="media_partial_access">Showing selected videos · Manage access</string>
     <string name="player_previous">Previous</string>
     <string name="player_next">Next</string>
@@ -228,7 +270,7 @@
     <string name="about_detail_04">Double-tap a view or use its audio button to select its sound.</string>
     <string name="about_detail_05">Optional crossfade makes audio switches smoother.</string>
     <string name="about_detail_06">Play or pause all, synchronize positions and change speed together.</string>
-    <string name="about_detail_07">Seek, pause or replace each video independently.</string>
+    <string name="about_detail_07">Seek, pause, replace or repeat each video independently, including A–B loops. Loop boundaries are not frame-accurate.</string>
     <string name="about_detail_08">Touch and hold a view to open its menu and swap positions.</string>
     <string name="about_detail_09">Single-video playback</string>
     <string name="about_detail_10">Play, pause, seek and see buffering status.</string>
@@ -266,4 +308,8 @@
     <string name="about_detail_42">Features</string>
     <string name="about_detail_43">Requirements</string>
     <string name="about_detail_44">Guide</string>
+    <string name="about_detail_45">Save and restore named quad presets. Loop settings are not saved; unavailable sources must be selected again.</string>
+    <string name="about_detail_46">Use playback queues and system media controls, and remember audio and subtitle selections per video.</string>
+    <string name="about_detail_47">Hide manually imported entries and manage retained file access after reviewing the consequences; original files are not deleted.</string>
+    <string name="about_detail_48">Adjust subtitle size, color and background, and view third-party license notices.</string>
 </resources>

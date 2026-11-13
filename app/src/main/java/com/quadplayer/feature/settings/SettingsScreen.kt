@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -16,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.AlertDialog
 import com.quadplayer.ui.theme.TrackDivider
 import androidx.compose.material3.Icon
 import com.quadplayer.ui.theme.DepthChoiceChip
@@ -24,13 +26,16 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalContext
 import android.content.pm.PackageManager
@@ -42,12 +47,17 @@ import com.quadplayer.R
 import com.quadplayer.core.model.AppThemeMode
 import com.quadplayer.core.model.DecoderMode
 import com.quadplayer.core.model.PlaybackSpeed
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.IOException
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     var showAboutSheet by remember { mutableStateOf(false) }
+    var showLicenses by remember { mutableStateOf(false) }
+    var showGrants by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -102,7 +112,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                     DepthChoiceChip(
                         selected = seconds == settings.doubleTapSeekSeconds,
                         onClick = { viewModel.setDoubleTapSeconds(seconds) },
-                        label = { Text(stringResource(R.string.settings_seek_seconds, seconds)) },
+                        label = { Text(pluralStringResource(R.plurals.settings_seek_seconds, seconds, seconds)) },
                     )
                 }
             }
@@ -158,11 +168,49 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             description = stringResource(R.string.settings_about_software_desc),
             onClick = { showAboutSheet = true },
         )
+        AboutSoftwareEntry(
+            title = stringResource(R.string.settings_open_source_licenses),
+            description = stringResource(R.string.settings_open_source_licenses_desc),
+            onClick = { showLicenses = true },
+        )
+        AboutSoftwareEntry(
+            title = stringResource(R.string.settings_grants_title),
+            description = stringResource(R.string.settings_grants_entry_desc),
+            onClick = { showGrants = true },
+        )
     }
 
     if (showAboutSheet) {
         AboutSoftwareSheet(onDismiss = { showAboutSheet = false })
     }
+    if (showLicenses) {
+        ThirdPartyNoticesDialog(onDismiss = { showLicenses = false })
+    }
+    if (showGrants) {
+        PersistedGrantManager(onDismiss = { showGrants = false })
+    }
+}
+
+@Composable
+internal fun ThirdPartyNoticesDialog(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val loading = stringResource(R.string.settings_licenses_loading)
+    val failed = stringResource(R.string.settings_licenses_failed)
+    val notices by produceState(loading, context, loading, failed) {
+        value = withContext(Dispatchers.IO) {
+            try {
+                listOf("third_party_summary.txt", "release_components.txt", "inter_tight_source.txt",
+                    "inter_tight_ofl.txt", "jakarta_inject_notice.txt", "apache_2_0.txt")
+                    .joinToString("\n\n") { file -> context.assets.open("licenses/$file").bufferedReader().use { it.readText() } }
+            } catch (_: IOException) { failed }
+        }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.settings_open_source_licenses)) },
+        text = { Text(notices, modifier = Modifier.heightIn(max = 480.dp).verticalScroll(rememberScrollState())) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_close)) } },
+    )
 }
 
 @Composable

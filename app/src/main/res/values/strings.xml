@@ -25,6 +25,11 @@
     <string name="quad_sync_not_ready">有视频尚不可定位，或已开启区间循环；请稍后重试或先清除区间。</string>
     <string name="quad_sync_incomplete">部分视频未能对齐，或片长短于音频源，请检查片源后重试。</string>
     <string name="app_name">QuadPlayer</string>
+    <string name="search_panel_open">显示搜索和筛选</string>
+    <string name="search_panel_close">收起搜索和筛选</string>
+    <string name="search_filter_active">搜索或排序已更改</string>
+    <string name="search_filter_inactive">默认搜索与排序</string>
+    <string name="video_more_actions">%1$s 的更多操作</string>
 
     <string name="nav_home">首页</string>
     <string name="nav_folders">文件夹</string>
@@ -43,7 +48,9 @@
     <string name="player_progress">播放进度</string>
     <string name="common_refresh">刷新</string>
     <string name="common_remove">移除</string>
-    <string name="common_video_count">%1$d 个视频</string>
+    <plurals name="common_video_count">
+        <item quantity="other">%1$d 个视频</item>
+    </plurals>
     <string name="common_folder_duration">%1$s · %2$s</string>
     <string name="common_empty">暂无内容</string>
     <string name="media_local_videos">本地视频</string>
@@ -65,6 +72,15 @@
     <string name="history_clear">清空播放记录</string>
     <string name="history_clear_confirmation">清空所有播放记录和续播位置？视频文件不会被删除。</string>
     <string name="history_change_failed">无法更新播放记录，请重试。</string>
+    <string name="import_remove_title">移除导入的视频</string>
+    <string name="import_remove_action">从媒体库移除</string>
+    <string name="import_remove_confirmation">将“%1$s”从媒体库隐藏？不会删除视频文件，播放记录和列表会保留。再次导入或恢复使用该视频的四格会话时，它可能重新出现。</string>
+    <string name="import_remove_failed">无法移除该视频，请刷新后重试。</string>
+    <string name="import_remove_and_revoke">移除并释放文件授权…</string>
+    <string name="import_revoke_title">释放文件授权？</string>
+    <string name="import_revoke_confirmation">移除“%1$s”并释放该文件的持久读取授权？正在播放的内容、四格会话、预设或其他使用同一文件的项目可能失去访问权限。原文件不会被删除；需要时可重新选择并授权。</string>
+    <string name="import_revoke_action">移除并释放授权</string>
+    <string name="import_remove_grant_retained">视频已从媒体库移除，但文件授权未释放。文件可能已被重新选择，或系统拒绝了释放请求。</string>
     <string name="external_video_open_failed">无法打开视频，请检查文件是否仍可访问。</string>
     <string name="home_my_playlists">我的播放列表</string>
     <string name="home_new_playlist">新建</string>
@@ -85,7 +101,9 @@
     <string name="folders_search_folders">搜索文件夹</string>
     <string name="folders_search_videos">搜索当前文件夹视频</string>
     <string name="folders_current_path">路径：%1$s</string>
-    <string name="folders_current_view_summary">当前列表：%1$d 个视频 · 总时长 %2$s · 总大小 %3$s</string>
+    <plurals name="folders_current_view_summary">
+        <item quantity="other">当前列表：%1$d 个视频 · 总时长 %2$s · 总大小 %3$s</item>
+    </plurals>
     <string name="folders_sort_title">排序方式</string>
     <string name="folders_sort_name">名称</string>
     <string name="folders_sort_date">日期</string>
@@ -133,7 +151,9 @@
     <string name="settings_subtitle_black">黑色</string>
     <string name="settings_default_speed_desc">新打开视频时默认应用的播放速度。</string>
     <string name="settings_double_tap_seek">双击快进/快退</string>
-    <string name="settings_seek_seconds">%1$d 秒</string>
+    <plurals name="settings_seek_seconds">
+        <item quantity="other">%1$d 秒</item>
+    </plurals>
     <string name="settings_double_tap_seek_desc">双击左侧后退，双击右侧前进。</string>
     <string name="settings_reverse_double_tap_seek">反向双击方向</string>
     <string name="settings_reverse_double_tap_seek_desc">开启后双击左侧快进，双击右侧后退。</string>
@@ -145,6 +165,22 @@
     <string name="settings_crossfade_audio_desc">四宫格切换当前音源时使用短暂音量渐变。</string>
     <string name="settings_about_software">关于软件</string>
     <string name="settings_about_software_desc">查看应用简介、核心功能、系统要求和使用指南。</string>
+    <string name="settings_open_source_licenses">第三方开源许可</string>
+    <string name="settings_open_source_licenses_desc">查看使用的组件、字体及其许可声明。</string>
+    <string name="settings_licenses_loading">正在加载许可声明…</string>
+    <string name="settings_licenses_failed">无法加载许可声明。</string>
+    <string name="settings_grants_title">管理文件授权</string>
+    <string name="settings_grants_entry_desc">查看和释放通过文件选择器保留的授权。</string>
+    <string name="settings_grants_desc">以下是应用保留的文件读取授权，包括不再显示在媒体库中的文件。释放前请确认影响。</string>
+    <string name="settings_grants_loading">正在读取授权…</string>
+    <string name="settings_grants_refresh">刷新</string>
+    <string name="settings_grants_empty">没有保留的文件读取授权。</string>
+    <string name="settings_grants_load_failed">无法读取文件授权，请稍后重试。</string>
+    <string name="settings_grant_revoke_title">释放文件授权？</string>
+    <string name="settings_grant_revoke_confirmation">释放“%1$s”的持久读取授权？当前播放、四格会话、预设、音轨或字幕可能失去访问权限。不会删除原文件，需要时可重新选择并授权。</string>
+    <string name="settings_grant_revoke_action">释放授权</string>
+    <string name="settings_grant_changed">该文件已被重新选择，授权未释放。请刷新后重试。</string>
+    <string name="settings_grant_release_failed">系统未能释放该授权，请稍后重试。</string>
     <string name="settings_about_software_subtitle">QuadPlayer 功能与使用说明</string>
 
     <string name="player_title">播放器</string>
@@ -166,7 +202,9 @@
     <string name="player_pip">画中画</string>
     <string name="player_switch_landscape">横屏</string>
     <string name="player_switch_portrait">竖屏</string>
-    <string name="player_seek_forward">快进 %1$d 秒</string>
+    <plurals name="player_seek_forward">
+        <item quantity="other">快进 %1$d 秒</item>
+    </plurals>
     <string name="media_partial_access">仅显示已授权视频 · 管理选择</string>
     <string name="player_previous">上一条</string>
     <string name="player_next">下一条</string>
@@ -236,7 +274,7 @@
     <string name="about_detail_04">双击画面或点击音频按钮切换当前音频源，其余画面自动静音。</string>
     <string name="about_detail_05">支持音频交叉淡入淡出，切换听感更平滑。</string>
     <string name="about_detail_06">支持全部播放/暂停、同步进度、统一调速等全局控制。</string>
-    <string name="about_detail_07">每个视频可单独拖拽进度、暂停或更换内容。</string>
+    <string name="about_detail_07">每个视频可单独拖拽进度、暂停、更换内容或设置整片和 A–B 循环；区间循环边界不保证逐帧精度。</string>
     <string name="about_detail_08">长按画面打开菜单，可选择交换画面位置。</string>
     <string name="about_detail_09">单视频播放</string>
     <string name="about_detail_10">支持播放、暂停、进度拖动和缓冲提示。</string>
@@ -274,4 +312,8 @@
     <string name="about_detail_42">核心功能</string>
     <string name="about_detail_43">系统要求</string>
     <string name="about_detail_44">使用指南</string>
+    <string name="about_detail_45">支持保存和恢复命名四格预设；预设不保存循环设置，失效片源需重新选择。</string>
+    <string name="about_detail_46">支持播放队列和系统媒体控件，并可按视频记住音轨和字幕选择。</string>
+    <string name="about_detail_47">可隐藏手动导入的条目，并在确认影响后管理保留的文件授权；原文件不会被删除。</string>
+    <string name="about_detail_48">可设置字幕大小、颜色和背景，并查看第三方许可声明。</string>
 </resources>

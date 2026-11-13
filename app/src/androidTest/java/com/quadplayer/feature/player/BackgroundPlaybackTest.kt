@@ -20,6 +20,7 @@ import com.quadplayer.core.database.QuadPlayerDatabase
 import com.quadplayer.core.database.VideoEntity
 import com.quadplayer.core.database.PlaylistEntity
 import com.quadplayer.core.database.PlaylistVideoEntity
+import com.quadplayer.core.model.DecoderMode
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -47,6 +48,7 @@ class BackgroundPlaybackTest {
         val entry = EntryPointAccessors.fromApplication(context, BackgroundPlaybackTestEntryPoint::class.java)
         val settings = entry.settings()
         val oldBackground = settings.settings.first().backgroundPlayback
+        val oldDecoder = settings.settings.first().decoderMode
         settings.setBackgroundPlayback(true)
         val file = File(context.cacheDir, "background-session-test.wav")
         val samples = ByteArray(16000 * 2 * 20)
@@ -98,6 +100,14 @@ class BackgroundPlaybackTest {
             withTimeout(5000) { while (withContext(Dispatchers.Main) { controller.playWhenReady }) delay(50) }
             withContext(Dispatchers.Main) { controller.play() }
             withTimeout(5000) { while (!withContext(Dispatchers.Main) { controller.isPlaying }) delay(50) }
+            val oldPlayer = withContext(Dispatchers.Main) { playback.controller.player }
+            settings.setDecoderMode(if (oldDecoder == DecoderMode.SOFTWARE) DecoderMode.HARDWARE else DecoderMode.SOFTWARE)
+            withTimeout(10000) { while (withContext(Dispatchers.Main) { playback.controller.player === oldPlayer }) delay(50) }
+            withTimeout(10000) { while (!withContext(Dispatchers.Main) { controller.isPlaying }) delay(50) }
+            withContext(Dispatchers.Main) { controller.pause() }
+            withTimeout(5000) { while (withContext(Dispatchers.Main) { controller.playWhenReady }) delay(50) }
+            withContext(Dispatchers.Main) { controller.play() }
+            withTimeout(5000) { while (!withContext(Dispatchers.Main) { controller.isPlaying }) delay(50) }
             val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
             val focus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT)
                 .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).build())
@@ -140,6 +150,7 @@ class BackgroundPlaybackTest {
             withContext(Dispatchers.Main) { mediaController?.release(); host.stopService() }
             scenario.close()
             settings.setBackgroundPlayback(oldBackground)
+            settings.setDecoderMode(oldDecoder)
             withContext(Dispatchers.IO) {
                 entry.database().playlistDao().deletePlaylistById(playlistId)
                 entry.database().openHelper.writableDatabase.execSQL("DELETE FROM videos WHERE id IN (?, ?)", arrayOf(id, secondId))

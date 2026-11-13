@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import android.os.Looper
 import android.provider.OpenableColumns
+import androidx.core.net.toUri
+import org.json.JSONObject
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.AudioAttributes
@@ -90,13 +92,14 @@ class PlayerController(
     private val handleAudioFocus: Boolean = false,
     private val compactLocalBuffer: Boolean = false,
     private val beforeSubtitleInspection: suspend (Uri) -> Unit = {},
-) {
+    private val rememberTrackChoices: Boolean = false,
+) : SinglePlayerHandle {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val dataSourceFactory = DefaultDataSource.Factory(context)
     private var trackSelector = DefaultTrackSelector(context)
     private var currentSettings = AppSettings()
     private val _uiState = MutableStateFlow(PlayerUiState())
-    val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
+    override val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             val start = _uiState.value.loopStartMs
@@ -116,6 +119,7 @@ class PlayerController(
         }
 
         override fun onTracksChanged(tracks: Tracks) {
+            restoreTrackChoices(tracks)
             if (pendingExternalSubtitleSelection) {
                 val group = tracks.groups.firstOrNull { candidate ->
                     candidate.type == C.TRACK_TYPE_TEXT && (0 until candidate.length).any { isExternalSubtitleTrack(candidate.getTrackFormat(it).id) }
@@ -154,9 +158,9 @@ class PlayerController(
         }
     }
     private var playerInternal: ExoPlayer = buildPlayer(currentSettings.decoderMode)
-    val player: ExoPlayer
+    override val player: ExoPlayer
         get() = playerInternal
-    var onPlayerRebuilt: ((ExoPlayer) -> Unit)? = null
+    override var onPlayerRebuilt: ((Player) -> Unit)? = null
 
     private var progressJob: Job? = null
     private val progressUpdatesEnabled = MutableStateFlow(true)
@@ -170,6 +174,10 @@ class PlayerController(
     private var externalAudioUri: Uri? = null
     private var released = false
     private var loadGeneration = 0L
+    private val trackChoices by lazy { TrackChoices(context) }
+    private var audioChoiceGeneration = 0L
+    private var pendingAudioChoice: JSONObject? = null
+    private var pendingTextChoice: JSONObject? = null
 
     init {
         playerInternal.addListener(playerListener)
@@ -193,7 +201,7 @@ class PlayerController(
         }
     }
 
-    suspend fun applySettings(settings: AppSettings) {
+    override suspend fun applySettings(settings: AppSettings) {
         val decoderChanged = settings.decoderMode != currentSettings.decoderMode
         currentSettings = settings
         if (decoderChanged) {
@@ -202,12 +210,15 @@ class PlayerController(
         setPlaybackSpeed(settings.defaultPlaybackSpeed)
     }
 
-    suspend fun load(video: VideoFile, startPositionMs: Long = 0L, playWhenReady: Boolean = true): Boolean {
+    override suspend fun load(video: VideoFile, startPositionMs: Long, playWhenReady: Boolean): Boolean {
         if (released) return false
         val request = ++loadGeneration
         val isNewVideo = currentVideo?.uriString != video.uriString
         if (isNewVideo) {
             subtitleSelectionGeneration++
+            audioChoiceGeneration++
+            pendingAudioChoice = null
+            pendingTextChoice = null
             selectExternalOnNextLoad = false
             pendingExternalSubtitleSelection = false
             externalSubtitleUri = null
@@ -216,19 +227,81 @@ class PlayerController(
             externalAudioUri = null
             player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
                 .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+                .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
                 .build()
         }
         _uiState.value = _uiState.value.copy(errorMessage = null, failure = null, videoSize = if (isNewVideo) VideoSize.UNKNOWN else _uiState.value.videoSize)
         currentVideo = video
         if (isNewVideo) {
-            val matchingFile = withContext(Dispatchers.IO) { findLocalSubtitle(video.localPath) }
+            val textGeneration = subtitleSelectionGeneration
+            val audioGeneration = audioChoiceGeneration
+            val (matchingFile, choices) = withContext(Dispatchers.IO) {
+                findLocalSubtitle(video.localPath) to if (rememberTrackChoices) {
+                    listOf(trackChoices.get(video.uriString, "audio"), trackChoices.get(video.uriString, "text"),
+                        trackChoices.get(video.uriString, "audio_source"), trackChoices.get(video.uriString, "text_source"))
+                } else null
+            }
             if (released || request != loadGeneration) return false
-            if (!subtitleSelectionExplicit && matchingFile != null) {
+            if (choices != null && audioGeneration == audioChoiceGeneration) {
+                pendingAudioChoice = choices[0]
+                val source = choices[2]
+                if (source?.optString("mode") == "external") {
+                    val uri = source.optString("uri").toUri()
+                    val available = withContext(Dispatchers.IO) {
+                        runCatching { context.contentResolver.openFileDescriptor(uri, "r")?.use { } != null }.getOrDefault(false)
+                    }
+                    if (released || request != loadGeneration) return false
+                    if (audioGeneration == audioChoiceGeneration && available) externalAudioUri = uri
+                }
+            }
+            if (choices != null && textGeneration == subtitleSelectionGeneration) {
+                val textChoice = choices[1]
+                if (textChoice?.optString("mode") == "external") {
+                    val uri = textChoice.optString("uri").toUri()
+                    val info = withContext(Dispatchers.IO) {
+                        runCatching {
+                            context.contentResolver.openFileDescriptor(uri, "r")?.use { }
+                                ?: error("Subtitle is unavailable")
+                            inspectSubtitleMime(uri)
+                        }.getOrNull()
+                    }
+                    if (released || request != loadGeneration) return false
+                    if (textGeneration == subtitleSelectionGeneration && info != null) {
+                        externalSubtitleUri = uri
+                        externalSubtitleMime = info
+                        subtitleSelectionExplicit = true
+                        selectExternalOnNextLoad = true
+                    }
+                } else if (textChoice?.optString("mode") == "track" && choices[3]?.optString("mode") == "external") {
+                    val uri = choices[3]!!.optString("uri").toUri()
+                    val info = withContext(Dispatchers.IO) {
+                        runCatching {
+                            context.contentResolver.openFileDescriptor(uri, "r")?.use { }
+                                ?: error("Subtitle is unavailable")
+                            inspectSubtitleMime(uri)
+                        }.getOrNull()
+                    }
+                    if (released || request != loadGeneration) return false
+                    if (textGeneration == subtitleSelectionGeneration) {
+                        if (info != null) {
+                            externalSubtitleUri = uri
+                            externalSubtitleMime = info
+                        }
+                        pendingTextChoice = textChoice
+                    }
+                } else {
+                    pendingTextChoice = textChoice
+                    if (textChoice?.optString("mode") == "none") subtitleSelectionExplicit = true
+                }
+            }
+            if (!subtitleSelectionExplicit && matchingFile != null && pendingTextChoice == null) {
                 externalSubtitleUri = Uri.fromFile(matchingFile)
                 externalSubtitleMime = subtitleMimeType(matchingFile.name, null)
                 selectExternalOnNextLoad = true
             }
+            applyDisabledChoices()
         }
         return withContext(Dispatchers.Main.immediate) {
             if (released || request != loadGeneration) return@withContext false
@@ -245,19 +318,13 @@ class PlayerController(
         }
     }
 
-    suspend fun setExternalSubtitle(uri: Uri?) {
+    override suspend fun setExternalSubtitle(uri: Uri?) {
         val request = ++subtitleSelectionGeneration
+        pendingTextChoice = null
         val videoBeforeQuery = currentVideo?.uriString
         val mime = uri?.let { selected -> withContext(Dispatchers.IO) {
             beforeSubtitleInspection(selected)
-            val resolver = context.contentResolver
-            val name = runCatching {
-                resolver.query(selected, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-                    val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
-                }
-            }.getOrNull()
-            subtitleMimeType(name ?: selected.lastPathSegment, runCatching { resolver.getType(selected) }.getOrNull())
+            inspectSubtitleMime(selected)
         } }
         if (released || currentVideo?.uriString != videoBeforeQuery || request != subtitleSelectionGeneration) return
         subtitleSelectionExplicit = true
@@ -271,21 +338,42 @@ class PlayerController(
                 .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
                 .build()
         }
+        if (rememberTrackChoices && videoBeforeQuery != null) {
+            val choice = JSONObject().put("mode", if (uri == null) "none" else "external")
+            if (uri != null) choice.put("uri", uri.toString())
+            trackChoices.put(videoBeforeQuery, "text", choice)
+            trackChoices.put(videoBeforeQuery, "text_source", choice)
+        }
         reloadCurrent()
     }
 
-    suspend fun setExternalAudio(uri: Uri?) {
+    override suspend fun setExternalAudio(uri: Uri?) {
+        audioChoiceGeneration++
+        pendingAudioChoice = null
         externalAudioUri = uri
+        if (uri != null) {
+            player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false).build()
+        }
+        currentVideo?.uriString?.takeIf { rememberTrackChoices }?.let { video ->
+            val choice = JSONObject().put("mode", if (uri == null) "none" else "external")
+            if (uri != null) choice.put("uri", uri.toString())
+            trackChoices.put(video, "audio_source", choice)
+            if (uri != null) trackChoices.put(video, "audio", JSONObject().put("mode", "auto"))
+        }
         reloadCurrent()
     }
 
-    fun togglePlayPause() {
+    override fun togglePlayPause() {
         if (player.isPlaying) player.pause() else player.play()
     }
 
     fun clear() {
         loadGeneration++
         subtitleSelectionGeneration++
+        pendingAudioChoice = null
+        pendingTextChoice = null
         selectExternalOnNextLoad = false
         pendingExternalSubtitleSelection = false
         currentVideo = null
@@ -300,42 +388,43 @@ class PlayerController(
         updateStateFromPlayer()
     }
 
-    fun retry() {
+    override fun retry(playWhenReady: Boolean) {
         if (currentVideo == null) return
         _uiState.value = _uiState.value.copy(errorMessage = null, failure = null)
+        if (!playWhenReady) player.pause()
         player.prepare()
-        player.play()
+        if (playWhenReady) player.play()
     }
 
-    fun play() = player.play()
+    override fun play() = player.play()
 
-    fun pause() = player.pause()
+    override fun pause() = player.pause()
 
-    fun seekTo(positionMs: Long) {
+    override fun seekTo(positionMs: Long) {
         player.seekTo(positionMs.coerceAtLeast(0L))
     }
 
-    fun seekBy(deltaMs: Long) {
+    override fun seekBy(deltaMs: Long) {
         seekTo(player.currentPosition + deltaMs)
     }
 
-    fun setProgressUpdatesEnabled(enabled: Boolean) {
+    override fun setProgressUpdatesEnabled(enabled: Boolean) {
         progressUpdatesEnabled.value = enabled
         if (enabled) updateStateFromPlayer(includeTracks = false)
     }
 
-    fun setPlaybackSpeed(speed: PlaybackSpeed) {
+    override fun setPlaybackSpeed(speed: PlaybackSpeed) {
         player.setPlaybackSpeed(speed.value)
         _uiState.value = _uiState.value.copy(playbackSpeed = speed)
     }
 
-    fun setLoopStart(): Boolean {
+    override fun setLoopStart(): Boolean {
         if (!player.isCurrentMediaItemSeekable) return false
         _uiState.value = _uiState.value.copy(loopStartMs = player.currentPosition.coerceAtLeast(0L), loopEndMs = null)
         return true
     }
 
-    fun setLoopEnd(): Boolean {
+    override fun setLoopEnd(): Boolean {
         val start = _uiState.value.loopStartMs ?: return false
         val end = player.currentPosition
         if (!player.isCurrentMediaItemSeekable || end - start < 250L) return false
@@ -345,11 +434,11 @@ class PlayerController(
         return true
     }
 
-    fun clearLoop() {
+    override fun clearLoop() {
         _uiState.value = _uiState.value.copy(loopStartMs = null, loopEndMs = null)
     }
 
-    fun cycleAspectMode() {
+    override fun cycleAspectMode() {
         val next = when (_uiState.value.aspectMode) {
             AspectMode.FIT -> AspectMode.FILL
             AspectMode.FILL -> AspectMode.ZOOM
@@ -361,7 +450,10 @@ class PlayerController(
         _uiState.value = _uiState.value.copy(aspectMode = next)
     }
 
-    fun selectAudioTrack(option: TrackOption?) {
+    override fun selectAudioTrack(option: TrackOption?) {
+        audioChoiceGeneration++
+        pendingAudioChoice = null
+        saveTrackChoice("audio", option)
         val builder = player.trackSelectionParameters.buildUpon()
         builder.clearOverridesOfType(C.TRACK_TYPE_AUDIO)
         builder.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, option == null)
@@ -373,8 +465,10 @@ class PlayerController(
         updateStateFromPlayer()
     }
 
-    fun selectSubtitleTrack(option: TrackOption?) {
+    override fun selectSubtitleTrack(option: TrackOption?) {
         subtitleSelectionGeneration++
+        pendingTextChoice = null
+        saveTrackChoice("text", option)
         subtitleSelectionExplicit = true
         selectExternalOnNextLoad = false
         pendingExternalSubtitleSelection = false
@@ -389,7 +483,7 @@ class PlayerController(
         updateStateFromPlayer()
     }
 
-    fun release() {
+    override fun release() {
         if (released) return
         released = true
         loadGeneration++
@@ -480,6 +574,74 @@ class PlayerController(
             }
             if (filtered.isNotEmpty()) filtered else decoders
         }
+    }
+
+    private fun inspectSubtitleMime(selected: Uri): String {
+        val resolver = context.contentResolver
+        val name = runCatching {
+            resolver.query(selected, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index >= 0 && cursor.moveToFirst()) cursor.getString(index) else null
+            }
+        }.getOrNull()
+        return subtitleMimeType(name ?: selected.lastPathSegment, runCatching { resolver.getType(selected) }.getOrNull())
+    }
+
+    private fun saveTrackChoice(type: String, option: TrackOption?) {
+        if (!rememberTrackChoices) return
+        val video = currentVideo?.uriString ?: return
+        val choice = if (option == null) JSONObject().put("mode", "disabled") else {
+            val group = player.currentTracks.groups.getOrNull(option.groupIndex) ?: return
+            if (option.trackIndex !in 0 until group.length) return
+            val format = group.getTrackFormat(option.trackIndex)
+            if (type == "text" && isExternalSubtitleTrack(format.id) && externalSubtitleUri != null) {
+                JSONObject().put("mode", "external").put("uri", externalSubtitleUri.toString())
+            } else JSONObject().put("mode", "track").put("fingerprint", trackFingerprint(format))
+        }
+        if (type == "text" && externalSubtitleUri != null) {
+            trackChoices.put(video, "text_source", JSONObject().put("mode", "external").put("uri", externalSubtitleUri.toString()))
+        }
+        trackChoices.put(video, type, choice)
+    }
+
+    private fun applyDisabledChoices() {
+        val builder = player.trackSelectionParameters.buildUpon()
+        if (pendingAudioChoice?.optString("mode") == "disabled") {
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true)
+            pendingAudioChoice = null
+        }
+        if (pendingTextChoice?.optString("mode") == "disabled") {
+            builder.setTrackTypeDisabled(C.TRACK_TYPE_TEXT, true)
+            pendingTextChoice = null
+        }
+        if (pendingTextChoice?.optString("mode") == "none") pendingTextChoice = null
+        player.trackSelectionParameters = builder.build()
+    }
+
+    private fun restoreTrackChoices(tracks: Tracks) {
+        // Empty track notifications also occur when the previous source is cleared.
+        if (tracks.groups.isEmpty() || player.currentMediaItem?.localConfiguration?.uri != currentVideo?.uri) return
+        fun restore(choice: JSONObject?, type: Int) {
+            if (choice?.optString("mode") != "track") return
+            val fingerprint = choice.optString("fingerprint")
+            val matches = tracks.groups.filter { it.type == type }.flatMap { group ->
+                (0 until group.length).filter { group.isTrackSupported(it) && trackFingerprint(group.getTrackFormat(it)) == fingerprint }
+                    .map { group to it }
+            }
+            // Never guess if the file changed or has indistinguishable tracks.
+            if (matches.size == 1) {
+                val (group, index) = matches.single()
+                player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+                    .clearOverridesOfType(type).setTrackTypeDisabled(type, false)
+                    .addOverride(TrackSelectionOverride(group.mediaTrackGroup, listOf(index))).build()
+            }
+        }
+        val audio = pendingAudioChoice
+        val text = pendingTextChoice
+        pendingAudioChoice = null
+        pendingTextChoice = null
+        restore(audio, C.TRACK_TYPE_AUDIO)
+        restore(text, C.TRACK_TYPE_TEXT)
     }
 
     private fun buildMediaSource(

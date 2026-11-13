@@ -1,0 +1,7 @@
+Third-party components
+
+The Android release runtime resolves the components listed below. Their published Maven metadata declares the Apache License, Version 2.0; Guava modules inherit that declaration from their published parent POMs. The list is the resolved runtime dependency set and can include libraries removed or reduced by code shrinking. The component list and licenses must be reviewed when dependencies change.
+
+Inter Tight is distributed separately under the SIL Open Font License 1.1. The bundled font source and license follow the component list. The Jakarta Dependency Injection notice, as distributed by that project, is also included below.
+
+Release runtime components (group:artifact:version):

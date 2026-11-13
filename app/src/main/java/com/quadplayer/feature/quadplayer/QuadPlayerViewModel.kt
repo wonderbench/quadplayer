@@ -21,7 +21,7 @@ import com.quadplayer.core.util.PerformanceMonitor
 import com.quadplayer.core.util.PerformanceWarning
 import com.quadplayer.core.util.enqueueWarning
 import com.quadplayer.core.util.VideoCapabilityWarning
-import com.quadplayer.feature.player.PlayerController
+import com.quadplayer.feature.player.QuadPlayerHandle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -190,7 +190,7 @@ class QuadPlayerViewModel @Inject constructor(
         }
     }
 
-    fun controllerAt(index: Int): PlayerController? = engine.controllerAt(index)
+    fun controllerAt(index: Int): QuadPlayerHandle? = engine.controllerAt(index)
     fun setProgressVisibleSlot(index: Int) = engine.setProgressVisibleSlot(index)
 
     fun onScreenStopped() {
@@ -316,7 +316,7 @@ class QuadPlayerViewModel @Inject constructor(
         if (restoring) return
         if (audioSourceManager.currentAudioSource.value < 0 || requestAudioFocus()) {
             engine.allowPlayback()
-            engine.controllerAt(slotIndex)?.retry()
+            engine.retrySlot(slotIndex)
         }
     }
 

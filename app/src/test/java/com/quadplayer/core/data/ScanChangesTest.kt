@@ -27,4 +27,11 @@ class ScanChangesTest {
         assertEquals(listOf(2L), calculateScanChanges(existing, emptyList(), setOf("granted")).hideIds)
         assertEquals(listOf(1L, 2L), calculateScanChanges(existing, emptyList()).hideIds)
     }
+
+    @Test fun scanDoesNotUndoAnExplicitlyHiddenManualEntry() {
+        val old = video(4, "manual", manual = true).copy(isHidden = true)
+        val refreshed = video(0, "manual").copy(durationMs = 123)
+        val result = calculateScanChanges(listOf(old), listOf(refreshed))
+        assertEquals(listOf(old.copy(durationMs = 123)), result.upserts)
+    }
 }

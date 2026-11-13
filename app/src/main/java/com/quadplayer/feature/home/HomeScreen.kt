@@ -26,6 +26,8 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import com.quadplayer.ui.theme.DepthChip
 import androidx.compose.material3.Button
 import com.quadplayer.ui.theme.DepthCard
@@ -55,17 +57,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.quadplayer.core.ui.rememberMediaAccess
 import com.quadplayer.core.ui.VideoThumbnail
+import com.quadplayer.core.ui.CompactVideoCard
+import com.quadplayer.core.ui.SearchPanelButton
 import com.quadplayer.R
 import com.quadplayer.core.model.PlaylistSummary
 import com.quadplayer.core.model.RecentPlayback
 import com.quadplayer.core.model.VideoFile
 import com.quadplayer.core.util.formatDuration
+import com.quadplayer.core.data.DocumentAccessGrants
+import com.quadplayer.core.data.DocumentGrantToken
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,10 +83,15 @@ fun HomeScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val historyError by viewModel.historyError.collectAsStateWithLifecycle()
+    val removalError by viewModel.removalError.collectAsStateWithLifecycle()
     val compactHeight = LocalConfiguration.current.screenHeightDp < 480
     val permission = rememberMediaAccess(viewModel::refresh)
     var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var searchExpanded by rememberSaveable(compactHeight) { mutableStateOf(!compactHeight) }
+    var tabMenuOpen by remember { mutableStateOf(false) }
     var playlistTarget by remember { mutableStateOf<VideoFile?>(null) }
+    var removalTarget by remember { mutableStateOf<VideoFile?>(null) }
+    var revokeTarget by remember { mutableStateOf<Pair<VideoFile, DocumentGrantToken>?>(null) }
 
 
 
@@ -103,11 +115,15 @@ fun HomeScreen(
         return
     }
 
+    val tabs = listOf(
+        stringResource(R.string.home_tab_library), stringResource(R.string.home_tab_recent),
+        stringResource(R.string.home_tab_favorites), stringResource(R.string.home_tab_playlists),
+    )
     PullToRefreshBox(isRefreshing = uiState.isRefreshing, onRefresh = viewModel::refresh, modifier = Modifier.fillMaxSize()) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = if (compactHeight) 4.dp else 16.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -125,6 +141,17 @@ fun HomeScreen(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.SemiBold,
             )
+            if (compactHeight) {
+                Box {
+                    DepthChip(onClick = { tabMenuOpen = true }, label = { Text(tabs[selectedTab] + " ▾") })
+                    DropdownMenu(expanded = tabMenuOpen, onDismissRequest = { tabMenuOpen = false }) {
+                        tabs.forEachIndexed { index, title ->
+                            DropdownMenuItem(text = { Text(title) }, onClick = { selectedTab = index; tabMenuOpen = false })
+                        }
+                    }
+                }
+                SearchPanelButton(searchExpanded, uiState.searchQuery.isNotBlank()) { searchExpanded = !searchExpanded }
+            }
             RoundIconButton(onClick = viewModel::refresh, enabled = !uiState.isRefreshing) {
                 Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.home_refresh))
             }
@@ -140,22 +167,19 @@ fun HomeScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Spacer(Modifier.height(if (compactHeight) 4.dp else 12.dp))
-        QuietTextField(
-            value = uiState.searchQuery,
-            onValueChange = viewModel::updateSearchQuery,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.home_search_label)) },
-        )
-        Spacer(Modifier.height(if (compactHeight) 4.dp else 12.dp))
+        if (!compactHeight || searchExpanded) {
+            Spacer(Modifier.height(if (compactHeight) 4.dp else 12.dp))
+            QuietTextField(
+                value = uiState.searchQuery,
+                onValueChange = viewModel::updateSearchQuery,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(stringResource(R.string.home_search_label)) },
+                singleLine = true,
+            )
+            Spacer(Modifier.height(if (compactHeight) 4.dp else 12.dp))
+        }
 
-        val tabs = listOf(
-            stringResource(R.string.home_tab_library),
-            stringResource(R.string.home_tab_recent),
-            stringResource(R.string.home_tab_favorites),
-            stringResource(R.string.home_tab_playlists),
-        )
-        TabRow(
+        if (!compactHeight) TabRow(
             selectedTabIndex = selectedTab,
             containerColor = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.primary,
@@ -180,6 +204,7 @@ fun HomeScreen(
                 onOpenVideo = onOpenVideo,
                 onToggleFavorite = viewModel::toggleFavorite,
                 onAddToPlaylist = { playlistTarget = it },
+                onRemove = { removalTarget = it },
             )
 
             1 -> RecentList(
@@ -196,6 +221,7 @@ fun HomeScreen(
                 onOpenVideo = onOpenVideo,
                 onToggleFavorite = viewModel::toggleFavorite,
                 onAddToPlaylist = { playlistTarget = it },
+                onRemove = { removalTarget = it },
             )
 
             else -> PlaylistList(
@@ -226,65 +252,70 @@ fun HomeScreen(
             confirmButton = { TextButton(onClick = viewModel::dismissHistoryError) { Text(stringResource(R.string.common_close)) } },
         )
     }
+    removalTarget?.let { target ->
+        val token = remember(target.id, target.uriString) { DocumentAccessGrants.capture(target.uri) }
+        AlertDialog(
+            onDismissRequest = { removalTarget = null },
+            title = { Text(stringResource(R.string.import_remove_title)) },
+            text = { Text(stringResource(R.string.import_remove_confirmation, target.displayName)) },
+            confirmButton = {
+                Column {
+                    TextButton(onClick = { viewModel.hideManualVideo(target.id, target.uriString); removalTarget = null }) { Text(stringResource(R.string.import_remove_action)) }
+                    TextButton(onClick = { revokeTarget = target to token; removalTarget = null }) { Text(stringResource(R.string.import_remove_and_revoke)) }
+                }
+            },
+            dismissButton = { TextButton(onClick = { removalTarget = null }) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
+    revokeTarget?.let { (target, token) ->
+        AlertDialog(
+            onDismissRequest = { revokeTarget = null },
+            title = { Text(stringResource(R.string.import_revoke_title)) },
+            text = { Text(stringResource(R.string.import_revoke_confirmation, target.displayName)) },
+            confirmButton = { TextButton(onClick = { viewModel.hideManualVideo(target.id, target.uriString, token); revokeTarget = null }) { Text(stringResource(R.string.import_revoke_action)) } },
+            dismissButton = { TextButton(onClick = { revokeTarget = null }) { Text(stringResource(R.string.common_cancel)) } },
+        )
+    }
+    removalError?.let { error ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissRemovalError,
+            text = { Text(stringResource(error)) },
+            confirmButton = { TextButton(onClick = viewModel::dismissRemovalError) { Text(stringResource(R.string.common_close)) } },
+        )
+    }
 }
 
 @Composable
-private fun VideoList(
+internal fun VideoList(
     videos: List<VideoFile>,
     emptyText: String,
     onOpenVideo: (Long) -> Unit,
     onToggleFavorite: (Long) -> Unit,
     onAddToPlaylist: (VideoFile) -> Unit,
+    onRemove: (VideoFile) -> Unit,
 ) {
     if (videos.isEmpty()) {
         EmptyStateText(emptyText)
         return
     }
 
-    LazyVerticalGrid(columns = GridCells.Adaptive(320.dp), contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyVerticalGrid(
+        columns = GridCells.Adaptive(280.dp),
+        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         gridItems(videos, key = { it.id }) { video ->
-            DepthCard(onClick = { onOpenVideo(video.id) }) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        VideoThumbnail(video)
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(video.displayName, maxLines = 2, style = MaterialTheme.typography.titleSmall)
-                            Text(
-                                text = stringResource(R.string.common_folder_duration, if (video.folderPath == "imported") stringResource(R.string.media_imported_folder) else video.folderName, formatDuration(video.durationMs)),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RoundIconButton(onClick = { onOpenVideo(video.id) }) {
-                            Icon(Icons.Rounded.PlayArrow, contentDescription = stringResource(R.string.common_play))
-                        }
-                        RoundIconButton(onClick = { onToggleFavorite(video.id) }) {
-                            Icon(
-                                imageVector = if (video.isFavorite) {
-                                    Icons.Rounded.Favorite
-                                } else {
-                                    Icons.Rounded.FavoriteBorder
-                                },
-                                contentDescription = stringResource(if (video.isFavorite) R.string.favorite_remove else R.string.favorite_add),
-                            )
-                        }
-                        TextButton(onClick = { onAddToPlaylist(video) }) {
-                            Text(stringResource(R.string.home_add_to_playlist))
-                        }
-                    }
-                }
-            }
+            CompactVideoCard(
+                video = video,
+                onOpen = { onOpenVideo(video.id) },
+                onToggleFavorite = { onToggleFavorite(video.id) },
+                onAddToPlaylist = { onAddToPlaylist(video) },
+                onRemove = if (video.isManuallyAdded) ({ onRemove(video) }) else null,
+            )
         }
     }
 }
-
 @Composable
 internal fun RecentList(
     items: List<RecentPlayback>,
@@ -372,7 +403,7 @@ private fun PlaylistList(
                         ) {
                             Text(playlist.name, style = MaterialTheme.typography.titleMedium)
                             Text(
-                                stringResource(R.string.common_video_count, playlist.videoCount),
+                                pluralStringResource(R.plurals.common_video_count, playlist.videoCount, playlist.videoCount),
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                         }

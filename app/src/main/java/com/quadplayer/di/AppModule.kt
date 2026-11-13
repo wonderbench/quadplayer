@@ -17,6 +17,7 @@ import com.quadplayer.core.database.VideoDao
 import com.quadplayer.core.database.MIGRATION_1_2
 import com.quadplayer.core.database.MIGRATION_2_3
 import com.quadplayer.core.database.MIGRATION_3_4
+import com.quadplayer.core.database.MIGRATION_4_5
 import com.quadplayer.core.database.QuadSessionDao
 import dagger.Module
 import dagger.Provides
@@ -32,7 +33,7 @@ object AppModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): QuadPlayerDatabase {
         return Room.databaseBuilder(context, QuadPlayerDatabase::class.java, "quadplayer.db")
-            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
             .build()
     }
 

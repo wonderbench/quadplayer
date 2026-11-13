@@ -45,6 +45,7 @@ class PlayerQueueIntegrationTest {
             override val videos = flowOf(fixtureVideos)
             override val favorites = flowOf(emptyList<VideoFile>())
             override val folders = flowOf(emptyList<FolderInfo>())
+            override suspend fun hideManualVideo(videoId: Long, uriString: String, expectedGrantRevision: Long?) = false
             override suspend fun refreshVideos() {}
             override suspend fun importVideo(uri: Uri): VideoFile? = null
             override suspend fun getVideo(videoId: Long) = fixtureVideos.firstOrNull { it.id == videoId && it.id !in unavailable }
