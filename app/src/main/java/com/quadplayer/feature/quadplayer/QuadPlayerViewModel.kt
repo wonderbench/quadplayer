@@ -2,6 +2,7 @@ package com.quadplayer.feature.quadplayer
 
 import android.content.Context
 import android.net.Uri
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.quadplayer.R
@@ -33,12 +34,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 
+data class QuadNotice(@StringRes val resourceId: Int, val arguments: List<Any> = emptyList())
+
 data class QuadPlayerUiState(
     val slots: List<QuadSlotUiState> = List(4) { QuadSlotUiState(index = it) },
     val layoutMode: LayoutMode = LayoutMode.EQUAL_GRID,
     val focusedSlot: Int = 0,
     val settings: AppSettings = AppSettings(),
-    val warningMessage: String? = null,
+    val warningMessage: QuadNotice? = null,
     val pendingSwapSource: Int? = null,
     val offerRecovery: Boolean = false,
     val recoveryAvailable: Boolean = false,
@@ -58,13 +61,13 @@ class QuadPlayerViewModel @Inject constructor(
     private val audioFocus = QuadAudioFocus(context) { engine.interruptPlayback() }
     private val audioSourceManager = AudioSourceManager(viewModelScope)
     private val layoutManager = QuadLayoutManager()
-    private val warningMessage = MutableStateFlow<String?>(null)
-    private val capabilityWarning = MutableStateFlow<String?>(null)
+    private val warningMessage = MutableStateFlow<QuadNotice?>(null)
+    private val capabilityWarning = MutableStateFlow<QuadNotice?>(null)
     private val performanceWarnings = MutableStateFlow<List<PerformanceWarning>>(emptyList())
     private val queuedNotices = combine(capabilityWarning, performanceWarnings) { capability, performance ->
         capability ?: when (performance.firstOrNull()) {
-            PerformanceWarning.LowMemory -> context.getString(R.string.quad_warning_low_memory)
-            PerformanceWarning.ThermalThrottle -> context.getString(R.string.quad_warning_thermal)
+            PerformanceWarning.LowMemory -> QuadNotice(R.string.quad_warning_low_memory)
+            PerformanceWarning.ThermalThrottle -> QuadNotice(R.string.quad_warning_thermal)
             null -> null
         }
     }
@@ -124,10 +127,9 @@ class QuadPlayerViewModel @Inject constructor(
                 null
             }
             if (capability?.warning != null) {
-                capabilityWarning.value = context.getString(
+                capabilityWarning.value = QuadNotice(
                     R.string.quad_warning_capability,
-                    capability.totalRamMb,
-                    capability.maxConcurrentDecoders,
+                    listOf(capability.totalRamMb, capability.maxConcurrentDecoders),
                 )
             }
         }
@@ -150,7 +152,7 @@ class QuadPlayerViewModel @Inject constructor(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                warningMessage.value = context.getString(R.string.quad_session_read_failed)
+                warningMessage.value = QuadNotice(R.string.quad_session_read_failed)
             } finally { sessionReady = true }
         }
         viewModelScope.launch {
@@ -168,7 +170,7 @@ class QuadPlayerViewModel @Inject constructor(
                     }
                     if (fallback != null) audioSourceManager.switchTo(fallback, volumeTargets, false)
                     else audioSourceManager.muteAll(volumeTargets)
-                    warningMessage.value = context.getString(R.string.quad_audio_source_failed)
+                    warningMessage.value = QuadNotice(R.string.quad_audio_source_failed)
                 }
             }
         }
@@ -191,7 +193,7 @@ class QuadPlayerViewModel @Inject constructor(
 
     private fun requestAudioFocus(): Boolean {
         if (audioFocus.request()) return true
-        warningMessage.value = context.getString(R.string.quad_audio_focus_unavailable)
+        warningMessage.value = QuadNotice(R.string.quad_audio_focus_unavailable)
         return false
     }
 
@@ -202,7 +204,7 @@ class QuadPlayerViewModel @Inject constructor(
                 val video = videoRepository.importVideo(uri)
                 if (request != importGenerations[slotIndex]) return@launch
                 if (video == null) {
-                    warningMessage.value = context.getString(R.string.quad_import_failed, slotIndex + 1)
+                    warningMessage.value = QuadNotice(R.string.quad_import_failed, listOf(slotIndex + 1))
                     return@launch
                 }
                 if (!engine.isInterrupted() && audioFocus.active && !requestAudioFocus()) return@launch
@@ -214,7 +216,7 @@ class QuadPlayerViewModel @Inject constructor(
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Exception) {
-                warningMessage.value = context.getString(R.string.quad_import_failed, slotIndex + 1)
+                warningMessage.value = QuadNotice(R.string.quad_import_failed, listOf(slotIndex + 1))
             }
         }
     }
@@ -225,8 +227,8 @@ class QuadPlayerViewModel @Inject constructor(
             val warning = withContext(Dispatchers.IO) { capabilityChecker.inspectVideo(video.uri) }
             if (engine.snapshot().getOrNull(slotIndex)?.uri == video.uriString) {
                 when (warning) {
-                    VideoCapabilityWarning.NoSupportedDecoder -> warningMessage.value = context.getString(R.string.quad_warning_format)
-                    VideoCapabilityWarning.SoftwareOnly -> warningMessage.value = context.getString(R.string.quad_warning_software)
+                    VideoCapabilityWarning.NoSupportedDecoder -> warningMessage.value = QuadNotice(R.string.quad_warning_format)
+                    VideoCapabilityWarning.SoftwareOnly -> warningMessage.value = QuadNotice(R.string.quad_warning_software)
                     null -> Unit
                 }
             }
@@ -294,8 +296,8 @@ class QuadPlayerViewModel @Inject constructor(
     fun seekSlot(slotIndex: Int, positionMs: Long) {
         if (!linkedSeek.value) engine.seekSlot(slotIndex, positionMs)
         else when (engine.seekLinked(slotIndex, positionMs)) {
-            null -> warningMessage.value = context.getString(R.string.quad_linked_seek_not_ready)
-            true -> warningMessage.value = context.getString(R.string.quad_linked_seek_limited)
+            null -> warningMessage.value = QuadNotice(R.string.quad_linked_seek_not_ready)
+            true -> warningMessage.value = QuadNotice(R.string.quad_linked_seek_limited)
             false -> Unit
         }
     }
@@ -379,7 +381,7 @@ class QuadPlayerViewModel @Inject constructor(
                 if (chosenAudio >= 0) audioSourceManager.switchTo(chosenAudio, volumeTargets, false)
                 else audioSourceManager.muteAll(volumeTargets)
                 if (failed || (session.audioSource >= 0 && chosenAudio != session.audioSource)) {
-                    warningMessage.value = context.getString(R.string.quad_session_some_missing)
+                    warningMessage.value = QuadNotice(R.string.quad_session_some_missing)
                 }
                 recoveryPrompt.value = recoveryPrompt.value.discard()
             } finally {
