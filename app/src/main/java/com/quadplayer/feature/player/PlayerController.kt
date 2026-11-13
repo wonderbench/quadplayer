@@ -388,11 +388,12 @@ class PlayerController(
         updateStateFromPlayer()
     }
 
-    fun retry() {
+    fun retry(playWhenReady: Boolean = true) {
         if (currentVideo == null) return
         _uiState.value = _uiState.value.copy(errorMessage = null, failure = null)
+        if (!playWhenReady) player.pause()
         player.prepare()
-        player.play()
+        if (playWhenReady) player.play()
     }
 
     fun play() = player.play()
