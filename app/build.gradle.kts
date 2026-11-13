@@ -74,6 +74,16 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }
+
+    lint {
+        baseline = file("lint-baseline.xml")
+        warningsAsErrors = true
+        abortOnError = true
+        // Dependabot tracks dependency upgrades; online version suggestions vary by runner and date.
+        disable += setOf("GradleDependency", "AndroidGradlePluginVersion")
+        textReport = true
+        textOutput = file("build/reports/lint-results-debug.txt")
+    }
 }
 
 kotlin {
