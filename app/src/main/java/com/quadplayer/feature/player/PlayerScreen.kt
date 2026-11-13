@@ -232,7 +232,7 @@ fun PlayerScreen(
         if (!state.controlsVisible) { showMore = false; showSpeed = false }
     }
 
-    val playerMessage = state.statusMessage ?: if (state.playerState.errorMessage != null) {
+    val playerMessage = state.statusMessage?.let { playerNoticeText(it) } ?: if (state.playerState.errorMessage != null) {
         stringResource(playbackFailureText(state.playerState.failure))
     } else {
         null
@@ -673,6 +673,9 @@ private fun PlayerSurface(
         )
     }
 }
+
+@Composable
+internal fun playerNoticeText(@androidx.annotation.StringRes resourceId: Int): String = stringResource(resourceId)
 
 @Composable
 private fun GestureOverlay(
